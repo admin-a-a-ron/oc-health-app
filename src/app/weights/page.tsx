@@ -5,6 +5,21 @@ import { useRouter } from "next/navigation";
 import { WeightChart } from "./weightChart";
 import { clearToken, getToken } from "@/lib/clientAuth";
 
+type DailyMetricsRow = {
+  date: string;
+  weight_lbs: number | null;
+  steps: number | null;
+  sleep_minutes: number | null;
+  calories_in: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  active_calories_out: number | null;
+  exercise_minutes: number | null;
+  resting_hr: number | null;
+  updated_at: string | null;
+};
+
 export type WeightRow = {
   date: string;
   weight_lbs: number;
@@ -13,6 +28,7 @@ export type WeightRow = {
 export default function WeightsPage() {
   const router = useRouter();
   const [weights, setWeights] = useState<WeightRow[]>([]);
+  const [metrics, setMetrics] = useState<DailyMetricsRow[]>([]);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [weight, setWeight] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -43,6 +59,15 @@ export default function WeightsPage() {
       }
       const data = (await res.json()) as WeightRow[];
       setWeights(data);
+
+      const mres = await fetch("/api/metrics", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (mres.ok) {
+        setMetrics((await mres.json()) as DailyMetricsRow[]);
+      }
+
       setLoading(false);
     }
     run();
@@ -79,6 +104,13 @@ export default function WeightsPage() {
       cache: "no-store",
     });
     if (refreshed.ok) setWeights(await refreshed.json());
+
+    const mres = await fetch("/api/metrics", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (mres.ok) setMetrics(await mres.json());
+
     setWeight("");
   }
 
@@ -86,6 +118,8 @@ export default function WeightsPage() {
     clearToken();
     router.replace("/login");
   }
+
+  const latestMetrics = metrics.length ? metrics[metrics.length - 1] : null;
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
@@ -146,7 +180,56 @@ export default function WeightsPage() {
         </section>
 
         <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-zinc-700">Trend</h2>
+          <h2 className="text-sm font-semibold text-zinc-700">Today / latest sync</h2>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Date</div>
+              <div className="text-sm font-semibold">{latestMetrics?.date ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Steps</div>
+              <div className="text-sm font-semibold">{latestMetrics?.steps ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Sleep (min)</div>
+              <div className="text-sm font-semibold">{latestMetrics?.sleep_minutes ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Resting HR</div>
+              <div className="text-sm font-semibold">{latestMetrics?.resting_hr ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Calories in</div>
+              <div className="text-sm font-semibold">{latestMetrics?.calories_in ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Protein (g)</div>
+              <div className="text-sm font-semibold">{latestMetrics?.protein_g ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Carbs (g)</div>
+              <div className="text-sm font-semibold">{latestMetrics?.carbs_g ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Fat (g)</div>
+              <div className="text-sm font-semibold">{latestMetrics?.fat_g ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Active cals out</div>
+              <div className="text-sm font-semibold">{latestMetrics?.active_calories_out ?? "—"}</div>
+            </div>
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <div className="text-xs text-zinc-500">Exercise (min)</div>
+              <div className="text-sm font-semibold">{latestMetrics?.exercise_minutes ?? "—"}</div>
+            </div>
+          </div>
+          <div className="mt-2 text-xs text-zinc-500">
+            Updated: {latestMetrics?.updated_at ?? "—"}
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-zinc-700">Weight trend</h2>
           <div className="mt-4">
             {loading ? (
               <p className="text-sm text-zinc-600">Loading…</p>
