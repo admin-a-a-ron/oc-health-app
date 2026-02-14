@@ -46,5 +46,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Only protect page routes; API routes do their own auth.
-  matcher: ["/((?!api|_next|.*\\..*).*)"],
+  // This avoids redirecting POSTs to /api/* (which can cause 405 loops).
+  matcher: ["/((?!api/|_next/|.*\\..*).*)"],
 };

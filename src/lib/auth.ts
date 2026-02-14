@@ -2,8 +2,12 @@ const COOKIE_NAME = "oc_auth";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 function toBase64Url(bytes: ArrayBuffer) {
-  const b = Buffer.from(bytes);
-  return b.toString("base64").replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  // Edge-safe base64url (no Node Buffer)
+  const arr = new Uint8Array(bytes);
+  let binary = "";
+  for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i]!);
+  const b64 = btoa(binary);
+  return b64.replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
 async function hmacSha256Base64Url(input: string, secret: string) {
