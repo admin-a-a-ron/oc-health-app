@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     name: getCookieName(),
     value: await signAuthCookie(secret),
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: getCookieMaxAgeSeconds(),

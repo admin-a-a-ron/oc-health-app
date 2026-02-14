@@ -7,7 +7,7 @@ export async function GET(req: Request) {
     name: getCookieName(),
     value: "",
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: 0,
