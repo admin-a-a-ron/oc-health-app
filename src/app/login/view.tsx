@@ -7,7 +7,7 @@ import { setToken } from "@/lib/clientAuth";
 export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
-  const next = sp.get("next") ?? "/weights";
+  const next = sp.get("next") ?? "/dashboard";
 
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);

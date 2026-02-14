@@ -38,7 +38,7 @@ export default function WeightsPage() {
   useEffect(() => {
     async function run() {
       if (!token) {
-        router.replace("/login?next=/weights");
+        router.replace("/login?next=/dashboard");
         return;
       }
       setLoading(true);
@@ -49,7 +49,7 @@ export default function WeightsPage() {
       });
       if (res.status === 401) {
         clearToken();
-        router.replace("/login?next=/weights");
+        router.replace("/login?next=/dashboard");
         return;
       }
       if (!res.ok) {
@@ -76,7 +76,7 @@ export default function WeightsPage() {
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     if (!token) {
-      router.replace("/login?next=/weights");
+      router.replace("/login?next=/dashboard");
       return;
     }
     setErr(null);
@@ -90,7 +90,7 @@ export default function WeightsPage() {
     });
     if (res.status === 401) {
       clearToken();
-      router.replace("/login?next=/weights");
+      router.replace("/login?next=/dashboard");
       return;
     }
     if (!res.ok) {
