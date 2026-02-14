@@ -9,8 +9,9 @@ export async function GET(req: Request) {
 
   const sb = supabaseAdmin();
   const { data, error } = await sb
-    .from("weights")
+    .from("daily_metrics")
     .select("date,weight_lbs")
+    .not("weight_lbs", "is", null)
     .order("date", { ascending: true });
 
   if (error) return new NextResponse(error.message, { status: 500 });
@@ -42,10 +43,11 @@ export async function POST(req: Request) {
   }
 
   const sb = supabaseAdmin();
-  const { error } = await sb.from("weights").upsert(
+  const { error } = await sb.from("daily_metrics").upsert(
     {
       date,
       weight_lbs: Math.round(weight * 10) / 10,
+      updated_at: new Date().toISOString(),
     },
     { onConflict: "date" }
   );

@@ -60,20 +60,5 @@ export async function POST(req: Request) {
 
   if (metricsError) return new NextResponse(metricsError.message, { status: 500 });
 
-  // Keep weights table in sync for chart (only if weight present)
-  if (payload.weight_lbs !== undefined && payload.weight_lbs !== null && payload.weight_lbs !== ("" as any)) {
-    const w = Number(payload.weight_lbs);
-    if (Number.isFinite(w) && w > 0 && w < 2000) {
-      const { error: weightError } = await sb.from("weights").upsert(
-        {
-          date,
-          weight_lbs: Math.round(w * 10) / 10,
-        },
-        { onConflict: "date" }
-      );
-      if (weightError) return new NextResponse(weightError.message, { status: 500 });
-    }
-  }
-
   return NextResponse.json({ ok: true });
 }
