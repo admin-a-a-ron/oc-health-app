@@ -45,5 +45,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!.*\\..*).*)"],
+  // Only protect page routes; API routes do their own auth.
+  matcher: ["/((?!api|_next|.*\\..*).*)"],
 };

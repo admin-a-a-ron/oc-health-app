@@ -1,7 +1,19 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getCookieName, verifyAuthCookie } from "@/lib/auth";
 
 export async function POST(req: Request) {
+  const secret = process.env.APP_COOKIE_SECRET;
+  if (!secret) {
+    return NextResponse.redirect(new URL("/login?err=missing_cookie_secret", req.url), 303);
+  }
+
+  const cookie = (await cookies()).get(getCookieName())?.value;
+  const ok = await verifyAuthCookie(cookie, secret);
+  if (!ok) {
+    return NextResponse.redirect(new URL("/login?next=/weights", req.url), 303);
+  }
   const form = await req.formData();
   const date = String(form.get("date") ?? "");
   const weightStr = String(form.get("weight_lbs") ?? "");
