@@ -1,29 +1,47 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getCookieName, verifyAuthCookie } from "@/lib/auth";
+import { verifyBearerAuth } from "@/lib/auth";
 
-export async function POST(req: Request) {
-  const cookie = (await cookies()).get(getCookieName())?.value;
-  const ok = await verifyAuthCookie(cookie);
-  if (!ok) {
-    return NextResponse.redirect(new URL("/login?next=/weights", req.url), 303);
-  }
-  const form = await req.formData();
-  const date = String(form.get("date") ?? "");
-  const weightStr = String(form.get("weight_lbs") ?? "");
-
-  const weight = Number(weightStr);
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return NextResponse.redirect(new URL("/weights?err=bad_date", req.url), 303);
-  }
-  if (!Number.isFinite(weight) || weight <= 0 || weight > 2000) {
-    return NextResponse.redirect(new URL("/weights?err=bad_weight", req.url), 303);
+export async function GET(req: Request) {
+  if (!verifyBearerAuth(req.headers.get("authorization"))) {
+    return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("weights")
+    .select("date,weight_lbs")
+    .order("date", { ascending: true });
 
-  // date is unique, so we can upsert by date
+  if (error) return new NextResponse(error.message, { status: 500 });
+  return NextResponse.json(data ?? []);
+}
+
+export async function POST(req: Request) {
+  if (!verifyBearerAuth(req.headers.get("authorization"))) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
+  let payload: any = null;
+  const ct = req.headers.get("content-type") ?? "";
+  if (ct.includes("application/json")) {
+    payload = await req.json();
+  } else {
+    const form = await req.formData();
+    payload = Object.fromEntries(form.entries());
+  }
+
+  const date = String(payload?.date ?? "");
+  const weight = Number(payload?.weight_lbs);
+
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return new NextResponse("Bad date", { status: 400 });
+  }
+  if (!Number.isFinite(weight) || weight <= 0 || weight > 2000) {
+    return new NextResponse("Bad weight", { status: 400 });
+  }
+
+  const sb = supabaseAdmin();
   const { error } = await sb.from("weights").upsert(
     {
       date,
@@ -32,9 +50,6 @@ export async function POST(req: Request) {
     { onConflict: "date" }
   );
 
-  if (error) {
-    return NextResponse.redirect(new URL(`/weights?err=${encodeURIComponent(error.code ?? "db")}`, req.url), 303);
-  }
-
-  return NextResponse.redirect(new URL("/weights", req.url), 303);
+  if (error) return new NextResponse(error.message, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

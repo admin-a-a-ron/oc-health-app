@@ -1,36 +1,25 @@
 import { NextResponse } from "next/server";
-import { getCookieMaxAgeSeconds, getCookieName, signAuthCookie } from "@/lib/auth";
+import { getExpectedToken } from "@/lib/auth";
 
 export async function POST(req: Request) {
-  const form = await req.formData();
-  const password = String(form.get("password") ?? "");
-  const next = String(form.get("next") ?? "/weights");
-
-  const expected = process.env.APP_PASSWORD;
-  if (!expected) {
-    return NextResponse.redirect(new URL(`/login?err=missing_env`, req.url), 303);
+  const expectedPass = process.env.APP_PASSWORD;
+  if (!expectedPass) {
+    return new NextResponse("Missing env APP_PASSWORD", { status: 500 });
   }
 
-  if (password !== expected) {
-    return NextResponse.redirect(new URL(`/login?err=bad_passcode`, req.url), 303);
-  }
-
-  const res = NextResponse.redirect(new URL(next, req.url), 303);
-  let cookieValue: string;
+  let body: any = null;
   try {
-    cookieValue = await signAuthCookie();
+    body = await req.json();
   } catch {
-    return NextResponse.redirect(new URL(`/login?err=missing_cookie_secret`, req.url), 303);
+    // ignore
   }
 
-  res.cookies.set({
-    name: getCookieName(),
-    value: cookieValue,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: getCookieMaxAgeSeconds(),
-  });
-  return res;
+  const password = String(body?.password ?? "");
+  if (password !== expectedPass) {
+    return new NextResponse("Bad passcode", { status: 401 });
+  }
+
+  // Return the bearer token the client should store
+  const token = getExpectedToken();
+  return NextResponse.json({ token });
 }

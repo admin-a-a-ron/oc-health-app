@@ -1,27 +1,91 @@
-import Link from "next/link";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { WeightChart } from "./weightChart";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { WeightChart } from "./weightChart";
+import { clearToken, getToken } from "@/lib/clientAuth";
 
 export type WeightRow = {
-  date: string; // yyyy-mm-dd
+  date: string;
   weight_lbs: number;
 };
 
-async function loadWeights(): Promise<WeightRow[]> {
-  const sb = supabaseAdmin();
-  const { data, error } = await sb
-    .from("weights")
-    .select("date,weight_lbs")
-    .order("date", { ascending: true });
+export default function WeightsPage() {
+  const router = useRouter();
+  const [weights, setWeights] = useState<WeightRow[]>([]);
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [weight, setWeight] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const token = useMemo(() => getToken(), []);
 
-  if (error) throw new Error(error.message);
-  return (data ?? []) as WeightRow[];
-}
+  useEffect(() => {
+    async function run() {
+      if (!token) {
+        router.replace("/login?next=/weights");
+        return;
+      }
+      setLoading(true);
+      setErr(null);
+      const res = await fetch("/api/weights", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (res.status === 401) {
+        clearToken();
+        router.replace("/login?next=/weights");
+        return;
+      }
+      if (!res.ok) {
+        setErr(await res.text());
+        setLoading(false);
+        return;
+      }
+      const data = (await res.json()) as WeightRow[];
+      setWeights(data);
+      setLoading(false);
+    }
+    run();
+  }, [router, token]);
 
-export default async function WeightsPage() {
-  const weights = await loadWeights();
+  async function onSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) {
+      router.replace("/login?next=/weights");
+      return;
+    }
+    setErr(null);
+    const res = await fetch("/api/weights", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ date, weight_lbs: weight }),
+    });
+    if (res.status === 401) {
+      clearToken();
+      router.replace("/login?next=/weights");
+      return;
+    }
+    if (!res.ok) {
+      setErr(await res.text());
+      return;
+    }
+
+    // Refresh list
+    const refreshed = await fetch("/api/weights", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (refreshed.ok) setWeights(await refreshed.json());
+    setWeight("");
+  }
+
+  function onLogout() {
+    clearToken();
+    router.replace("/login");
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
@@ -31,18 +95,21 @@ export default async function WeightsPage() {
             <h1 className="text-lg font-semibold">Weight</h1>
             <p className="text-sm text-zinc-600">lbs + 7-day average</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link className="text-sm underline" href="/api/logout">
-              Log out
-            </Link>
-          </div>
+          <button className="text-sm underline" onClick={onLogout}>
+            Log out
+          </button>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-6">
         <section className="rounded-xl border border-zinc-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-zinc-700">Add / update</h2>
-          <form className="mt-3 flex flex-wrap items-end gap-3" action="/api/weights" method="post">
+
+          {err ? (
+            <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{err}</p>
+          ) : null}
+
+          <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={onSave}>
             <div className="flex flex-col gap-1">
               <label className="text-sm" htmlFor="date">Date</label>
               <input
@@ -50,7 +117,8 @@ export default async function WeightsPage() {
                 name="date"
                 type="date"
                 className="h-10 rounded-md border border-zinc-300 px-3"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
                 required
               />
             </div>
@@ -62,12 +130,15 @@ export default async function WeightsPage() {
                 inputMode="decimal"
                 className="h-10 w-40 rounded-md border border-zinc-300 px-3"
                 placeholder="215.4"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
                 required
               />
             </div>
             <button
-              className="h-10 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-800"
+              className="h-10 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
               type="submit"
+              disabled={loading}
             >
               Save
             </button>
@@ -77,7 +148,11 @@ export default async function WeightsPage() {
         <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-zinc-700">Trend</h2>
           <div className="mt-4">
-            <WeightChart weights={weights} />
+            {loading ? (
+              <p className="text-sm text-zinc-600">Loading…</p>
+            ) : (
+              <WeightChart weights={weights} />
+            )}
           </div>
         </section>
 
