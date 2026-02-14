@@ -22,17 +22,8 @@ export async function middleware(req: NextRequest) {
 
   if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
 
-  const secret = process.env.APP_COOKIE_SECRET;
-  if (!secret) {
-    // Fail closed if misconfigured
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("err", "missing_cookie_secret");
-    return NextResponse.redirect(url);
-  }
-
   const cookie = req.cookies.get(getCookieName())?.value;
-  const ok = await verifyAuthCookie(cookie, secret);
+  const ok = await verifyAuthCookie(cookie);
 
   if (!ok) {
     const url = req.nextUrl.clone();

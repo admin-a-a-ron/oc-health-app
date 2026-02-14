@@ -7,9 +7,7 @@ export async function POST(req: Request) {
   const next = String(form.get("next") ?? "/weights");
 
   const expected = process.env.APP_PASSWORD;
-  const secret = process.env.APP_COOKIE_SECRET;
-
-  if (!expected || !secret) {
+  if (!expected) {
     return NextResponse.redirect(new URL(`/login?err=missing_env`, req.url), 303);
   }
 
@@ -18,9 +16,16 @@ export async function POST(req: Request) {
   }
 
   const res = NextResponse.redirect(new URL(next, req.url), 303);
+  let cookieValue: string;
+  try {
+    cookieValue = await signAuthCookie();
+  } catch {
+    return NextResponse.redirect(new URL(`/login?err=missing_cookie_secret`, req.url), 303);
+  }
+
   res.cookies.set({
     name: getCookieName(),
-    value: await signAuthCookie(secret),
+    value: cookieValue,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
