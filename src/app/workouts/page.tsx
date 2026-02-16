@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { clearToken, getToken } from "@/lib/clientAuth";
+import TopNav from "@/components/TopNav";
 
 type PlanType = "ppl" | "framework" | "full_body";
 
@@ -62,21 +63,11 @@ export default function WorkoutsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
+      <TopNav />
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold">Workouts</h1>
-            <p className="text-sm text-zinc-600">Generate a time-boxed session (strength-first)</p>
-          </div>
-          <button
-            className="text-sm underline"
-            onClick={() => {
-              clearToken();
-              router.replace("/login?next=/workouts");
-            }}
-          >
-            Log out
-          </button>
+        <div className="mx-auto max-w-4xl px-6 py-4">
+          <h1 className="text-lg font-semibold">Workouts</h1>
+          <p className="text-sm text-zinc-600">Generate a time-boxed session (strength-first)</p>
         </div>
       </header>
 

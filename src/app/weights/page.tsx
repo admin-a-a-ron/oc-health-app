@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WeightChart } from "./weightChart";
 import { clearToken, getToken } from "@/lib/clientAuth";
+import TopNav from "@/components/TopNav";
 
 type DailyMetricsRow = {
   date: string;
@@ -114,24 +115,15 @@ export default function WeightsPage() {
     setWeight("");
   }
 
-  function onLogout() {
-    clearToken();
-    router.replace("/login");
-  }
-
   const latestMetrics = metrics.length ? metrics[metrics.length - 1] : null;
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
+      <TopNav />
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-lg font-semibold">Weight</h1>
-            <p className="text-sm text-zinc-600">lbs + 7-day average</p>
-          </div>
-          <button className="text-sm underline" onClick={onLogout}>
-            Log out
-          </button>
+        <div className="mx-auto max-w-4xl px-6 py-4">
+          <h1 className="text-lg font-semibold">Weight</h1>
+          <p className="text-sm text-zinc-600">lbs + 7-day average</p>
         </div>
       </header>
 

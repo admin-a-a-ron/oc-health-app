@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { clearToken, getToken } from "@/lib/clientAuth";
+import TopNav from "@/components/TopNav";
 
 type SessionExercise = {
   id: string;
@@ -196,6 +197,7 @@ export default function WorkoutSessionPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
+      <TopNav />
       <header className="border-b border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <div>
