@@ -12,7 +12,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const { data: sess, error: sessErr } = await sb
     .from("workout_sessions")
-    .select("id,date,plan_type,plan_subtype,target_minutes,started_at,ended_at,duration_seconds")
+    .select("id,date,plan_type,plan_subtype,target_minutes,gym_id,started_at,ended_at,duration_seconds")
     .eq("id", id)
     .limit(1);
 

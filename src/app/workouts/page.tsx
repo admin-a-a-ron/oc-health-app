@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { clearToken, getToken } from "@/lib/clientAuth";
 
@@ -11,8 +11,23 @@ export default function WorkoutsPage() {
   const token = useMemo(() => getToken(), []);
   const [planType, setPlanType] = useState<PlanType>("framework");
   const [minutes, setMinutes] = useState(60);
+  const [gymId, setGymId] = useState<string>("");
+  const [gyms, setGyms] = useState<Array<{ id: string; name: string; is_default: boolean }>>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadGyms() {
+      if (!token) return;
+      const res = await fetch("/api/gyms", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = (await res.json()) as Array<{ id: string; name: string; is_default: boolean }>;
+      setGyms(data);
+      const def = data.find((g) => g.is_default) ?? data[0];
+      if (def) setGymId(def.id);
+    }
+    loadGyms();
+  }, [token]);
 
   async function generate() {
     if (!token) {
@@ -28,7 +43,7 @@ export default function WorkoutsPage() {
           "content-type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ plan_type: planType, target_minutes: minutes }),
+        body: JSON.stringify({ plan_type: planType, target_minutes: minutes, gym_id: gymId || null }),
       });
       if (res.status === 401) {
         clearToken();
@@ -73,7 +88,7 @@ export default function WorkoutsPage() {
             <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{err}</p>
           ) : null}
 
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="text-sm font-medium">Plan type</label>
               <select
@@ -84,6 +99,22 @@ export default function WorkoutsPage() {
                 <option value="framework">Framework (your emphasis days)</option>
                 <option value="ppl">Push / Pull / Legs</option>
                 <option value="full_body">Full body</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Gym</label>
+              <select
+                className="mt-1 h-10 w-full rounded-md border border-zinc-300 px-3"
+                value={gymId}
+                onChange={(e) => setGymId(e.target.value)}
+              >
+                {gyms.length === 0 ? <option value="">(loading…)</option> : null}
+                {gyms.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
               </select>
             </div>
 

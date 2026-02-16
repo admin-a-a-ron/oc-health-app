@@ -17,15 +17,17 @@ export async function POST(req: Request) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const body = (await req.json()) as { plan_type?: PlanType; target_minutes?: number };
+  const body = (await req.json()) as { plan_type?: PlanType; target_minutes?: number; gym_id?: string | null };
   const plan_type: PlanType = body.plan_type ?? "framework";
   const target_minutes = Math.max(30, Math.min(120, Number(body.target_minutes ?? 60)));
+
+  const gym_id = body.gym_id ? String(body.gym_id) : null;
 
   const sb = supabaseAdmin();
 
   const { data: sessionRows, error: sessionErr } = await sb
     .from("workout_sessions")
-    .insert({ date: todayDateString(), plan_type, target_minutes })
+    .insert({ date: todayDateString(), plan_type, target_minutes, gym_id })
     .select("id")
     .limit(1);
 
@@ -35,6 +37,17 @@ export async function POST(req: Request) {
   // Strength-first: 1 main + 1 secondary + 1 accessory (optional core depending on time)
   // This is a simple v1 generator. We'll evolve this into a proper time-budget planner.
   const wantsCore = target_minutes >= 55;
+
+  // Load gym equipment tags (simple v1)
+  let gymEquipment: string[] | null = null;
+  if (gym_id) {
+    const { data: eqRows, error: eqErr } = await sb
+      .from("gym_equipment")
+      .select("equipment_tag")
+      .eq("gym_id", gym_id);
+    if (eqErr) return new NextResponse(eqErr.message, { status: 500 });
+    gymEquipment = (eqRows ?? []).map((r: any) => String(r.equipment_tag));
+  }
 
   // Define role requirements by plan_type
   const roles: Array<{ role: string; split_tag: string; angle?: string | null; pattern?: string | null; sets: number; rep_min: number; rep_max: number; rest: number }> = [];
@@ -97,7 +110,7 @@ export async function POST(req: Request) {
   for (const r of roles) {
     let q = sb
       .from("exercises")
-      .select("id,name,rest_seconds_default")
+      .select("id,name,rest_seconds_default,required_equipment")
       .limit(50);
 
     // split_tag
@@ -108,7 +121,14 @@ export async function POST(req: Request) {
 
     const { data, error } = await q;
     if (error) return new NextResponse(error.message, { status: 500 });
-    const chosen = data && data.length ? pick(data as any[]) : null;
+
+    const filtered = (data as any[] | null | undefined)?.filter((ex) => {
+      if (!gymEquipment) return true;
+      const req = (ex.required_equipment ?? []) as string[];
+      return req.every((t) => gymEquipment!.includes(t));
+    });
+
+    const chosen = filtered && filtered.length ? pick(filtered) : null;
     if (!chosen) continue;
 
     sessionExercises.push({
