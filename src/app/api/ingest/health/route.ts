@@ -24,6 +24,12 @@ function numOrNull(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function intOrNull(v: any): number | null {
+  const n = numOrNull(v);
+  if (n === null) return null;
+  return Math.round(n);
+}
+
 export async function POST(req: Request) {
   if (!verifyBearerAuth(req.headers.get("authorization"))) {
     return new NextResponse("Unauthorized", { status: 401 });
@@ -43,14 +49,14 @@ export async function POST(req: Request) {
     {
       date,
       weight_lbs: numOrNull(payload.weight_lbs),
-      steps: numOrNull(payload.steps),
-      sleep_minutes: numOrNull(payload.sleep_minutes),
-      calories_in: numOrNull(payload.calories_in),
+      steps: intOrNull(payload.steps),
+      sleep_minutes: intOrNull(payload.sleep_minutes),
+      calories_in: intOrNull(payload.calories_in),
       protein_g: numOrNull(payload.protein_g),
       carbs_g: numOrNull(payload.carbs_g),
       fat_g: numOrNull(payload.fat_g),
       active_calories_out: numOrNull(payload.active_calories_out),
-      exercise_minutes: numOrNull(payload.exercise_minutes),
+      exercise_minutes: intOrNull(payload.exercise_minutes),
       resting_hr: numOrNull(payload.resting_hr),
       raw: payload.raw ?? payload,
       updated_at: new Date().toISOString(),
