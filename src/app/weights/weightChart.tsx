@@ -22,17 +22,20 @@ function rollingAvg(values: number[], window: number) {
 }
 
 export function WeightChart({ weights }: { weights: WeightRow[] }) {
-  const values = weights.map((w) => Number(w.weight_lbs));
+  // Treat 0/negative as missing values so skipped days don't distort trend.
+  const valid = weights.filter((w) => Number(w.weight_lbs) > 0);
+
+  const values = valid.map((w) => Number(w.weight_lbs));
   const avg7 = rollingAvg(values, 7);
 
-  const data = weights.map((w, i) => ({
+  const data = valid.map((w, i) => ({
     date: w.date.slice(5), // MM-DD
     weight: Number(w.weight_lbs),
     avg7: avg7[i] ? Number(avg7[i]!.toFixed(2)) : null,
   }));
 
   if (data.length === 0) {
-    return <p className="text-sm text-zinc-600">No data yet. Add your first weigh-in.</p>;
+    return <p className="text-sm text-zinc-600">No non-zero weight data yet.</p>;
   }
 
   return (

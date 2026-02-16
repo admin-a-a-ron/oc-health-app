@@ -183,8 +183,12 @@ export default function WeightsPage() {
               <div className="text-sm font-semibold">{latestMetrics?.steps ?? "—"}</div>
             </div>
             <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Sleep (min)</div>
-              <div className="text-sm font-semibold">{latestMetrics?.sleep_minutes ?? "—"}</div>
+              <div className="text-xs text-zinc-500">Sleep (hrs)</div>
+              <div className="text-sm font-semibold">
+                {latestMetrics?.sleep_minutes != null
+                  ? (latestMetrics.sleep_minutes / 60).toFixed(1)
+                  : "—"}
+              </div>
             </div>
             <div className="rounded-lg border border-zinc-200 p-3">
               <div className="text-xs text-zinc-500">Resting HR</div>
@@ -207,7 +211,7 @@ export default function WeightsPage() {
               <div className="text-sm font-semibold">{latestMetrics?.fat_g ?? "—"}</div>
             </div>
             <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Active cals out</div>
+              <div className="text-xs text-zinc-500">Calories burned</div>
               <div className="text-sm font-semibold">{latestMetrics?.active_calories_out ?? "—"}</div>
             </div>
             <div className="rounded-lg border border-zinc-200 p-3">
@@ -243,6 +247,7 @@ export default function WeightsPage() {
               </thead>
               <tbody>
                 {weights
+                  .filter((w) => Number(w.weight_lbs) > 0)
                   .slice()
                   .reverse()
                   .slice(0, 14)
