@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WeightChart } from "./weightChart";
+import { SleepActivityChart } from "@/app/dashboard/sleepActivityChart";
+import { NutritionChart } from "@/app/dashboard/nutritionChart";
+import { HealthScoreChart } from "@/app/dashboard/healthScoreChart";
 import { clearToken, getToken } from "@/lib/clientAuth";
 import TopNav from "@/components/TopNav";
 
@@ -231,6 +234,39 @@ export default function WeightsPage() {
               <p className="text-sm text-zinc-600">Loading…</p>
             ) : (
               <WeightChart weights={weights} />
+            )}
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-zinc-700">Sleep & Activity Timeline</h2>
+          <div className="mt-4">
+            {loading ? (
+              <p className="text-sm text-zinc-600">Loading…</p>
+            ) : (
+              <SleepActivityChart metrics={metrics} />
+            )}
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-zinc-700">Nutrition Dashboard</h2>
+          <div className="mt-4">
+            {loading ? (
+              <p className="text-sm text-zinc-600">Loading…</p>
+            ) : (
+              <NutritionChart metrics={metrics} />
+            )}
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-zinc-700">Health Score Analysis</h2>
+          <div className="mt-4">
+            {loading ? (
+              <p className="text-sm text-zinc-600">Loading…</p>
+            ) : (
+              <HealthScoreChart metrics={metrics} />
             )}
           </div>
         </section>
