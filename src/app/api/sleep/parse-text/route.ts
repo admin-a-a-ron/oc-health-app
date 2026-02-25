@@ -11,6 +11,19 @@ import {
   SleepSampleInsert,
 } from "@/lib/sleepSamples";
 
+const FALLBACK_TIMEZONE = "T00:00:00-08:00";
+
+const parseDateTime = (value?: string | null, fallbackDate?: string) => {
+  if (value) {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) return new Date(parsed);
+  }
+  if (fallbackDate) {
+    return new Date(`${fallbackDate}${FALLBACK_TIMEZONE}`);
+  }
+  return null;
+};
+
 type SleepEntry = {
   date_time?: string;
   sleep_type?: string;
@@ -25,16 +38,6 @@ type Body = {
 
 const SOURCE_TEXT = "sleep_parse";
 const SOURCE_ENTRIES = "sleep_entries";
-
-const parseDateTime = (value?: string | null) => {
-  if (!value) return null;
-  const direct = Date.parse(value);
-  if (!Number.isNaN(direct)) return new Date(direct);
-  const normalized = value.replace(" at ", " ");
-  const alt = Date.parse(normalized);
-  if (!Number.isNaN(alt)) return new Date(alt);
-  return null;
-};
 
 export async function POST(req: Request) {
   if (!verifyBearerAuth(req.headers.get("authorization"))) {
@@ -89,8 +92,8 @@ export async function POST(req: Request) {
       for (const entry of body.entries!) {
         const minutes = durationToMinutes(entry.duration);
         if (!minutes) continue;
-        const parsed = parseDateTime(entry.date_time);
-        addSample(entry.sleep_type ?? "unknown", minutes, entry, parsed);
+        const parsed = parseDateTime(entry.date_time, date);
+        addSample(entry.sleep_type ?? "unknown", minutes, entry, parsed ?? undefined);
       }
     } else if (text) {
       const lines = text
@@ -99,13 +102,34 @@ export async function POST(req: Request) {
         .filter(Boolean);
 
       for (const line of lines) {
-        const parts = line.split(",");
-        if (parts.length < 2) continue;
-        const stage = parts[0]?.trim();
-        const duration = parts[1]?.trim();
+        const [stagePart, durationPart, ...rest] = line.split(",");
+        if (!stagePart || !durationPart) continue;
+
+        const stage = stagePart.trim();
+        const duration = durationPart.trim();
         const minutes = durationToMinutes(duration);
         if (!minutes) continue;
-        addSample(stage, minutes, { line });
+
+        const meta: Record<string, any> = { line };
+        let startTs: Date | null = null;
+        let endTs: Date | null = null;
+
+        rest.forEach((chunk) => {
+          const [key, value] = chunk.split("=").map((s) => s.trim());
+          if (!key || !value) return;
+          const normalizedKey = key.toLowerCase();
+          if (normalizedKey === "start") {
+            startTs = parseDateTime(date, value);
+            meta.start = value;
+          } else if (normalizedKey === "end") {
+            endTs = parseDateTime(date, value);
+            meta.end = value;
+          } else {
+            meta[key] = value;
+          }
+        });
+
+        addSample(stage, minutes, meta, startTs ?? undefined);
       }
     }
 
