@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyBearerAuth } from "@/lib/auth";
+import { dateToUtcStart, replaceSamplesForDate } from "@/lib/sleepSamples";
 
 type Payload = {
   date: string;
@@ -45,12 +46,12 @@ export async function POST(req: Request) {
   const sb = supabaseAdmin();
 
   // Upsert into daily_metrics
+  const sleepMinutes = intOrNull(payload.sleep_minutes);
   const { error: metricsError } = await sb.from("daily_metrics").upsert(
     {
       date,
       weight_lbs: numOrNull(payload.weight_lbs),
       steps: intOrNull(payload.steps),
-      sleep_minutes: intOrNull(payload.sleep_minutes),
       calories_in: intOrNull(payload.calories_in),
       protein_g: numOrNull(payload.protein_g),
       carbs_g: numOrNull(payload.carbs_g),
@@ -65,6 +66,22 @@ export async function POST(req: Request) {
   );
 
   if (metricsError) return new NextResponse(metricsError.message, { status: 500 });
+
+  if (sleepMinutes !== null) {
+    const startIso = dateToUtcStart(date).toISOString();
+    const sample = {
+      sample_ts: startIso,
+      stage: "total" as const,
+      duration_minutes: sleepMinutes,
+      raw: { source: "ingest/health", sleep_minutes: sleepMinutes },
+    };
+
+    try {
+      await replaceSamplesForDate(sb, date, "ingest_health", [sample]);
+    } catch (error: any) {
+      return new NextResponse(error.message || "Failed to save sleep samples", { status: 500 });
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }

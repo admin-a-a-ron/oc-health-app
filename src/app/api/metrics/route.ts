@@ -9,7 +9,7 @@ export async function GET(req: Request) {
 
   const sb = supabaseAdmin();
   const { data, error } = await sb
-    .from("daily_metrics")
+    .from("daily_metrics_with_sleep")
     .select(
       "date,weight_lbs,steps,sleep_minutes,calories_in,protein_g,carbs_g,fat_g,active_calories_out,exercise_minutes,resting_hr,updated_at"
     )
