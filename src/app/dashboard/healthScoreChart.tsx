@@ -41,7 +41,7 @@ export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
 
   const avgSteps = average(windowed.map((m) => m.steps ?? 0)) ?? 0;
   const avgExercise = average(windowed.map((m) => m.exercise_minutes ?? 0)) ?? 0;
-  const activityScore = Math.round(Math.min(100, avgSteps / 100) * 0.6 + Math.min(100, (avgExercise / 30) * 100) * 0.4);
+  const activityScore = Math.round(Math.min(100, (avgSteps / 8000) * 100) * 0.6 + Math.min(100, (avgExercise / 30) * 100) * 0.4);
 
   const avgProtein = average(windowed.map((m) => m.protein_g ?? 0)) ?? 0;
   const avgCalories = average(windowed.map((m) => m.calories_in ?? 0)) ?? 0;
