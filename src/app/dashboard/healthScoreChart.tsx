@@ -21,98 +21,74 @@ interface HealthScoreChartProps {
   metrics: DailyMetricsRow[];
 }
 
-const pickLatest = (rows: DailyMetricsRow[], predicate: (row: DailyMetricsRow) => boolean) => {
-  for (let i = rows.length - 1; i >= 0; i -= 1) {
-    if (predicate(rows[i])) return rows[i];
-  }
-  return null;
-};
-
 const average = (values: number[]) => {
   if (!values.length) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 };
 
 export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
-  const calculateScores = () => {
-    if (metrics.length === 0) return null;
-
-    const recent7 = metrics.slice(-7);
-    const recent30 = metrics.slice(-30);
-
-    const latestSleep = pickLatest(metrics, (m) => m.sleep_minutes != null);
-    const sleepHours = latestSleep ? (latestSleep.sleep_minutes ?? 0) / 60 : 0;
-    const sleepScore = Math.min(100, Math.max(0, (sleepHours / 8) * 100));
-
-    const activityEntries = recent7.filter((m) => m.steps != null || m.exercise_minutes != null);
-    const avgSteps = average(activityEntries.map((m) => m.steps ?? 0)) ?? 0;
-    const avgExercise = average(activityEntries.map((m) => m.exercise_minutes ?? 0)) ?? 0;
-    const stepsScore = Math.min(100, (avgSteps / 10000) * 100);
-    const exerciseScore = Math.min(100, (avgExercise / 30) * 100);
-    const activityScore = Math.round(stepsScore * 0.6 + exerciseScore * 0.4);
-
-    const latestNutrition = pickLatest(metrics, (m) => [m.protein_g, m.carbs_g, m.fat_g, m.calories_in].some((v) => v != null));
-    const protein = latestNutrition?.protein_g ?? 0;
-    const carbs = latestNutrition?.carbs_g ?? 0;
-    const fat = latestNutrition?.fat_g ?? 0;
-    const calories = latestNutrition?.calories_in ?? 0;
-    let nutritionScore = 0;
-    if (calories > 0) {
-      const proteinPercent = (protein * 4) / calories;
-      const carbPercent = (carbs * 4) / calories;
-      const fatPercent = (fat * 9) / calories;
-      const balanceScore = 100 - (Math.abs(proteinPercent - 0.3) + Math.abs(carbPercent - 0.4) + Math.abs(fatPercent - 0.3)) * 50;
-      const proteinScore = Math.min(100, (protein / 0.8 / 200) * 100);
-      nutritionScore = Math.round(Math.max(0, Math.min(100, balanceScore * 0.5 + proteinScore * 0.5)));
-    }
-
-    const heartEntries = metrics.filter((m) => m.resting_hr != null).slice(-5);
-    const restingAvg = average(heartEntries.map((m) => m.resting_hr ?? 0)) ?? null;
-    const restingHR = restingAvg ?? 70;
-    let heartHealth = 0;
-    if (restingHR >= 60 && restingHR <= 80) {
-      heartHealth = 100 - Math.abs(restingHR - 70) * 3;
-    } else {
-      heartHealth = Math.max(0, 100 - Math.abs(restingHR - 70) * 2);
-    }
-    heartHealth = Math.round(Math.max(0, Math.min(100, heartHealth)));
-
-    const daysWithData = recent7.filter((m) =>
-      [m.steps, m.sleep_minutes, m.exercise_minutes, m.calories_in, m.resting_hr].some((v) => v != null)
-    ).length;
-    const consistency = Math.round((daysWithData / 7) * 100);
-
-    let weightTrend = 50;
-    if (recent30.length >= 14) {
-      const recent = recent30.slice(-7).filter((m) => m.weight_lbs != null);
-      const prior = recent30.slice(0, -7).filter((m) => m.weight_lbs != null);
-      const avgRecent = average(recent.map((m) => m.weight_lbs ?? 0));
-      const avgPrior = average(prior.map((m) => m.weight_lbs ?? 0));
-      if (avgRecent != null && avgPrior != null && avgPrior !== 0) {
-        const change = ((avgPrior - avgRecent) / avgPrior) * 100;
-        weightTrend = Math.max(0, Math.min(100, 50 + change * 5));
-      }
-    }
-
-    return {
-      sleep: Math.round(sleepScore),
-      activity: Math.round(activityScore),
-      nutrition: Math.round(nutritionScore),
-      heartHealth,
-      consistency,
-      weightTrend: Math.round(weightTrend),
-    };
-  };
-
-  const scores = calculateScores();
-
-  if (!scores) {
+  const windowed = metrics.slice(-7);
+  if (!windowed.length) {
     return (
       <div className="h-80 flex items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50">
         <p className="text-zinc-500">No data available for health score calculation</p>
       </div>
     );
   }
+
+  const sleepHours = average(windowed.map((m) => (m.sleep_minutes ?? 0) / 60)) ?? 0;
+  const sleepScore = Math.max(0, Math.min(100, (sleepHours / 8) * 100));
+
+  const avgSteps = average(windowed.map((m) => m.steps ?? 0)) ?? 0;
+  const avgExercise = average(windowed.map((m) => m.exercise_minutes ?? 0)) ?? 0;
+  const activityScore = Math.round(Math.min(100, avgSteps / 100) * 0.6 + Math.min(100, (avgExercise / 30) * 100) * 0.4);
+
+  const avgProtein = average(windowed.map((m) => m.protein_g ?? 0)) ?? 0;
+  const avgCalories = average(windowed.map((m) => m.calories_in ?? 0)) ?? 0;
+  let nutritionScore = 0;
+  if (avgCalories > 0) {
+    const proteinPercent = (avgProtein * 4) / avgCalories;
+    const proteinScore = Math.min(100, (avgProtein / 0.8 / 200) * 100);
+    const balanceScore = Math.max(0, 100 - Math.abs(proteinPercent - 0.3) * 200);
+    nutritionScore = Math.round((proteinScore + balanceScore) / 2);
+  }
+
+  const avgResting = average(windowed.map((m) => m.resting_hr ?? 0));
+  let heartHealth = 0;
+  if (avgResting != null) {
+    if (avgResting >= 60 && avgResting <= 80) {
+      heartHealth = 100 - Math.abs(avgResting - 70) * 3;
+    } else {
+      heartHealth = Math.max(0, 100 - Math.abs(avgResting - 70) * 2);
+    }
+  }
+
+  const daysWithData = windowed.filter((m) =>
+    [m.steps, m.sleep_minutes, m.exercise_minutes, m.calories_in, m.resting_hr].some((v) => v != null)
+  ).length;
+  const consistency = Math.round((daysWithData / windowed.length) * 100);
+
+  const weightEntries = metrics.filter((m) => m.weight_lbs != null);
+  let weightTrend = 50;
+  if (weightEntries.length >= 14) {
+    const recent = weightEntries.slice(-7);
+    const prior = weightEntries.slice(-14, -7);
+    const avgRecent = average(recent.map((m) => m.weight_lbs ?? 0));
+    const avgPrior = average(prior.map((m) => m.weight_lbs ?? 0));
+    if (avgRecent != null && avgPrior != null && avgPrior !== 0) {
+      const change = ((avgPrior - avgRecent) / avgPrior) * 100;
+      weightTrend = Math.max(0, Math.min(100, 50 + change * 5));
+    }
+  }
+
+  const scores = {
+    sleep: Math.round(sleepScore),
+    activity: Math.round(activityScore),
+    nutrition: Math.round(nutritionScore),
+    heartHealth: Math.round(Math.max(0, Math.min(100, heartHealth))),
+    consistency,
+    weightTrend: Math.round(weightTrend),
+  };
 
   const radarData = [
     { subject: 'Sleep', score: scores.sleep, fullMark: 100 },
@@ -157,7 +133,7 @@ export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-sm font-semibold text-zinc-700">Overall Health Score</h3>
-            <p className="mt-1 text-xs text-zinc-500">Comprehensive assessment of your health metrics</p>
+            <p className="mt-1 text-xs text-zinc-500">Based on 7-day averages</p>
           </div>
           <div className={`rounded-full ${getScoreBgColor(overallScore)} px-3 py-1`}>
             <span className={`text-sm font-bold ${getScoreColor(overallScore)}`}>
