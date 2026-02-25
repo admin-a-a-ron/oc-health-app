@@ -22,8 +22,16 @@ interface NutritionChartProps {
 }
 
 export function NutritionChart({ metrics }: NutritionChartProps) {
-  // Get latest metrics for macro breakdown
-  const latestMetrics = metrics.length > 0 ? metrics[metrics.length - 1] : null;
+  // Use the most recent completed day (yesterday if today is incomplete)
+  const today = new Date().toISOString().slice(0, 10);
+  const latestMetrics = (() => {
+    if (!metrics.length) return null;
+    const completed = metrics.filter((m) => m.date <= today);
+    if (completed.length) {
+      return completed.sort((a, b) => a.date.localeCompare(b.date)).pop() ?? null;
+    }
+    return metrics[metrics.length - 1] ?? null;
+  })();
 
   // Calculate macro percentages
   const macroData = latestMetrics
