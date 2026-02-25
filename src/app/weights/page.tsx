@@ -24,15 +24,49 @@ type DailyMetricsRow = {
   updated_at: string | null;
 };
 
+type SleepTimelineEntry = {
+  id: string;
+  date_time: string;
+  type: string;
+  duration_minutes: number;
+  source?: string | null;
+};
+
 export type WeightRow = {
   date: string;
   weight_lbs: number;
 };
 
 export default function WeightsPage() {
+  const pickTimelineDate = (rows: DailyMetricsRow[]) => {
+    if (!rows.length) {
+      const fallback = new Date();
+      fallback.setDate(fallback.getDate() - 1);
+      return fallback.toISOString().slice(0, 10);
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const completed = rows.filter((row) => row.date < today && (row.sleep_minutes ?? 0) > 0);
+    if (completed.length) return completed[completed.length - 1].date;
+    return rows[rows.length - 1].date;
+  };
+
+
   const router = useRouter();
   const [weights, setWeights] = useState<WeightRow[]>([]);
   const [metrics, setMetrics] = useState<DailyMetricsRow[]>([]);
+  const [sleepTimeline, setSleepTimeline] = useState<SleepTimelineEntry[]>([]);
+  const fetchTimeline = async (authToken: string, rows: DailyMetricsRow[]) => {
+    const targetDate = pickTimelineDate(rows);
+    const res = await fetch(`/api/sleep/timeline?date=${targetDate}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const body = await res.json();
+      setSleepTimeline(body.entries ?? []);
+    }
+  };
+
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [weight, setWeight] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -69,7 +103,9 @@ export default function WeightsPage() {
         cache: "no-store",
       });
       if (mres.ok) {
-        setMetrics((await mres.json()) as DailyMetricsRow[]);
+        const payload = (await mres.json()) as DailyMetricsRow[];
+        setMetrics(payload);
+        await fetchTimeline(token, payload);
       }
 
       setLoading(false);
@@ -113,7 +149,11 @@ export default function WeightsPage() {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
-    if (mres.ok) setMetrics(await mres.json());
+    if (mres.ok) {
+      const payload = await mres.json();
+      setMetrics(payload);
+      await fetchTimeline(token, payload);
+    }
 
     setWeight("");
   }
@@ -244,7 +284,7 @@ export default function WeightsPage() {
             {loading ? (
               <p className="text-sm text-zinc-600">Loading…</p>
             ) : (
-              <SleepActivityChart metrics={metrics} />
+              <SleepActivityChart sleepTimeline={sleepTimeline} />
             )}
           </div>
         </section>
