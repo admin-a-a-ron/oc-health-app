@@ -2,11 +2,22 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyBearerAuth } from "@/lib/auth";
 
+const FALLBACK_TIMEZONE = "T00:00:00-08:00";
+
+const parseDateTime = (date: string, value?: string | null) => {
+  if (value) {
+    const tryDirect = Date.parse(value);
+    if (!Number.isNaN(tryDirect)) return new Date(tryDirect);
+  }
+  return new Date(`${date}${FALLBACK_TIMEZONE}`);
+};
+
 type SleepStage = {
-  type: 'core' | 'rem' | 'deep' | 'awake' | 'in_bed' | 'asleep';
+  type: "core" | "rem" | "deep" | "awake" | "in_bed" | "asleep";
   duration_minutes: number;
-  start_time?: string; // ISO string
-  end_time?: string; // ISO string
+  start_time?: string; // RFC 2822 / ISO string
+  end_time?: string; // RFC 2822 / ISO string
+  raw_text?: string;
 };
 
 type SleepImportRequest = {
@@ -21,71 +32,69 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { date, stages, source = 'apple_health' }: SleepImportRequest = await req.json();
-    
+    const { date, stages, source = "apple_health" }: SleepImportRequest = await req.json();
+
     if (!date || !stages || !Array.isArray(stages)) {
       return new NextResponse("Missing date or stages array", { status: 400 });
     }
 
     const sb = supabaseAdmin();
-    
-    // Delete existing sleep data for this date (if re-importing)
-    const { error: deleteError } = await sb
-      .from("sleep_data")
-      .delete()
-      .eq("date", date);
-      
+
+    // Remove existing rows for this sample_date
+    const { error: deleteError } = await sb.from("sleep_data").delete().eq("sample_date", date);
     if (deleteError) {
       console.warn("Could not delete existing sleep data:", deleteError);
     }
 
-    // Prepare records for insertion
-    const records = stages.map(stage => ({
-      date,
-      sleep_type: stage.type,
-      duration_minutes: stage.duration_minutes,
-      start_time: stage.start_time || null,
-      end_time: stage.end_time || null,
-      source,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
+    const nowIso = new Date().toISOString();
 
-    // Insert all sleep stage records
-    const { data, error } = await sb
-      .from("sleep_data")
-      .insert(records)
-      .select("id, sleep_type, duration_minutes");
-
-    if (error) throw error;
-    
-    // Calculate summary for daily_metrics
-    const summary = stages.reduce((acc, stage) => {
-      if (stage.type === 'core' || stage.type === 'rem' || stage.type === 'deep') {
-        acc.totalSleep += stage.duration_minutes;
-        
-        if (stage.type === 'core') acc.core += stage.duration_minutes;
-        if (stage.type === 'rem') acc.rem += stage.duration_minutes;
-        if (stage.type === 'deep') acc.deep += stage.duration_minutes;
-      }
-      if (stage.type === 'awake') acc.awake += stage.duration_minutes;
-      if (stage.type === 'in_bed') acc.inBed += stage.duration_minutes;
-      
-      return acc;
-    }, {
-      totalSleep: 0,
-      core: 0,
-      rem: 0,
-      deep: 0,
-      awake: 0,
-      inBed: 0,
+    const records = stages.map((stage, idx) => {
+      const duration = Math.max(0, stage.duration_minutes || 0);
+      const startDate = parseDateTime(date, stage.start_time);
+      const payload = {
+        date_time: startDate.toISOString(),
+        type: stage.type,
+        duration_minutes: duration,
+        source,
+        raw: {
+          idx,
+          provided_start: stage.start_time ?? null,
+          provided_end: stage.end_time ?? null,
+          raw_text: stage.raw_text ?? null,
+        },
+        created_at: nowIso,
+      };
+      return payload;
     });
-    
-    const sleepEfficiency = summary.inBed > 0 
-      ? Math.round((summary.totalSleep / summary.inBed) * 100) 
-      : 0;
 
-    // Update daily_metrics with sleep summary
+    const { data, error } = await sb.from("sleep_data").insert(records).select("id,type,duration_minutes");
+    if (error) throw error;
+
+    const summary = stages.reduce(
+      (acc, stage) => {
+        const minutes = Math.max(0, stage.duration_minutes || 0);
+        if (["core", "rem", "deep", "asleep"].includes(stage.type)) {
+          acc.totalSleep += minutes;
+        }
+        if (stage.type === "core") acc.core += minutes;
+        if (stage.type === "rem") acc.rem += minutes;
+        if (stage.type === "deep") acc.deep += minutes;
+        if (stage.type === "awake") acc.awake += minutes;
+        if (stage.type === "in_bed") acc.inBed += minutes;
+        return acc;
+      },
+      {
+        totalSleep: 0,
+        core: 0,
+        rem: 0,
+        deep: 0,
+        awake: 0,
+        inBed: 0,
+      }
+    );
+
+    const sleepEfficiency = summary.inBed > 0 ? Math.round((summary.totalSleep / summary.inBed) * 100) : null;
+
     const { data: existingMetric } = await sb
       .from("daily_metrics")
       .select("id")
@@ -98,30 +107,28 @@ export async function POST(req: Request) {
         .update({
           sleep_minutes: summary.totalSleep,
           sleep_efficiency: sleepEfficiency,
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         })
         .eq("id", existingMetric.id);
     } else {
-      await sb
-        .from("daily_metrics")
-        .insert([{
+      await sb.from("daily_metrics").insert([
+        {
           date,
           sleep_minutes: summary.totalSleep,
           sleep_efficiency: sleepEfficiency,
-          updated_at: new Date().toISOString(),
-        }]);
+          updated_at: nowIso,
+        },
+      ]);
     }
 
     return NextResponse.json({
       message: "Sleep data imported successfully",
-      inserted: data.length,
+      inserted: data?.length ?? 0,
       summary: {
         ...summary,
         sleepEfficiency,
       },
-      records: data,
     });
-    
   } catch (error: any) {
     console.error("Sleep import error:", error);
     return new NextResponse(error.message || "Internal error", { status: 500 });
@@ -135,19 +142,19 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
-  const limit = searchParams.get("limit") || "100";
+  const limit = Number(searchParams.get("limit") || "100");
 
   const sb = supabaseAdmin();
-  
+
   let query = sb
     .from("sleep_data")
-    .select("*")
-    .order("date", { ascending: false })
-    .order("start_time", { ascending: true })
-    .limit(parseInt(limit));
-    
+    .select("id,date_time,type,duration_minutes,source,raw,sample_date")
+    .order("sample_date", { ascending: false })
+    .order("date_time", { ascending: true })
+    .limit(limit);
+
   if (date) {
-    query = query.eq("date", date);
+    query = query.eq("sample_date", date);
   }
 
   const { data, error } = await query;
