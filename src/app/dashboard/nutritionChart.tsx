@@ -24,26 +24,35 @@ interface NutritionChartProps {
 export function NutritionChart({ metrics }: NutritionChartProps) {
   // Get latest metrics for macro breakdown
   const latestMetrics = metrics.length > 0 ? metrics[metrics.length - 1] : null;
-  
+
   // Calculate macro percentages
-  const macroData = latestMetrics ? [
-    { name: 'Protein', value: latestMetrics.protein_g || 0, color: '#0088FE' },
-    { name: 'Carbs', value: latestMetrics.carbs_g || 0, color: '#00C49F' },
-    { name: 'Fat', value: latestMetrics.fat_g || 0, color: '#FFBB28' },
-  ] : [];
+  const macroData = latestMetrics
+    ? [
+        { name: 'Protein', value: latestMetrics.protein_g ?? 0, color: '#0088FE' },
+        { name: 'Carbs', value: latestMetrics.carbs_g ?? 0, color: '#00C49F' },
+        { name: 'Fat', value: latestMetrics.fat_g ?? 0, color: '#FFBB28' },
+      ]
+    : [];
 
   const totalMacros = macroData.reduce((sum, item) => sum + item.value, 0);
-  
+
   // Prepare data for calorie balance chart (last 7 days)
-  const calorieData = metrics
-    .filter(m => m.calories_in != null && m.active_calories_out != null)
-    .slice(-7)
-    .map(m => ({
+  const recentMetrics = metrics.slice(-7);
+  const calorieData = recentMetrics
+    .filter((m) => m.calories_in != null && m.active_calories_out != null)
+    .map((m) => ({
       date: new Date(m.date).toLocaleDateString('en-US', { weekday: 'short' }),
-      caloriesIn: m.calories_in || 0,
-      caloriesOut: m.active_calories_out || 0,
-      netCalories: (m.calories_in || 0) - (m.active_calories_out || 0),
+      caloriesIn: m.calories_in ?? 0,
+      caloriesOut: m.active_calories_out ?? 0,
+      netCalories: (m.calories_in ?? 0) - (m.active_calories_out ?? 0),
     }));
+
+  const avgDailyCalories = (() => {
+    const valid = recentMetrics.filter((m) => typeof m.calories_in === 'number');
+    if (!valid.length) return null;
+    const total = valid.reduce((sum, m) => sum + (m.calories_in ?? 0), 0);
+    return Math.round(total / valid.length);
+  })();
 
   // Calculate nutrition score
   const calculateNutritionScore = () => {
@@ -84,6 +93,14 @@ export function NutritionChart({ metrics }: NutritionChartProps) {
 
   const nutritionScore = calculateNutritionScore();
 
+  if (!latestMetrics) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
+        No nutrition data recorded yet. Add an entry to unlock the nutrition dashboard.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Nutrition Score Card */}
@@ -116,19 +133,25 @@ export function NutritionChart({ metrics }: NutritionChartProps) {
             <div className="space-y-1 text-xs">
               <div className="flex justify-between">
                 <span className="text-zinc-500">Protein:</span>
-                <span className="font-medium">{latestMetrics?.protein_g || 0}g</span>
+                <span className="font-medium">{latestMetrics?.protein_g ?? 0}g</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">Carbs:</span>
-                <span className="font-medium">{latestMetrics?.carbs_g || 0}g</span>
+                <span className="font-medium">{latestMetrics?.carbs_g ?? 0}g</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">Fat:</span>
-                <span className="font-medium">{latestMetrics?.fat_g || 0}g</span>
+                <span className="font-medium">{latestMetrics?.fat_g ?? 0}g</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-500">Calories:</span>
-                <span className="font-medium">{latestMetrics?.calories_in || 0}</span>
+                <span className="text-zinc-500">Calories (today):</span>
+                <span className="font-medium">{latestMetrics?.calories_in ?? 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Avg daily calories (7d):</span>
+                <span className="font-medium">
+                  {avgDailyCalories !== null ? avgDailyCalories : '—'}
+                </span>
               </div>
             </div>
           </div>
