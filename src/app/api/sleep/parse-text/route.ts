@@ -171,19 +171,20 @@ export async function POST(req: Request) {
     const { error: deleteError } = await sb
       .from("sleep_data")
       .delete()
-      .eq("date", date);
+      .eq("sample_date", date);
       
     if (deleteError) console.warn("Could not delete existing sleep data:", deleteError);
     
     // Insert individual sleep stage records into sleep_data table
-    const sleepRecords = [
-      { date, sleep_type: 'core', duration_minutes: totals.core },
-      { date, sleep_type: 'rem', duration_minutes: totals.rem },
-      { date, sleep_type: 'deep', duration_minutes: totals.deep },
-      { date, sleep_type: 'awake', duration_minutes: totals.awake },
-    ].filter(record => record.duration_minutes > 0);
+    const sleepRecords = samples.map((sample) => ({
+      date_time: sample.sample_ts,
+      type: sample.stage,
+      duration_minutes: sample.duration_minutes,
+      source,
+      raw: sample.raw ?? null,
+    }));
     
-    if (sleepRecords.length > 0) {
+    if (sleepRecords.length) {
       const { error: sleepError } = await sb
         .from("sleep_data")
         .insert(sleepRecords);
