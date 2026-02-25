@@ -311,32 +311,6 @@ export default function WeightsPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-zinc-700">Recent entries</h2>
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-zinc-500">
-                  <th className="py-2 pr-4">Date</th>
-                  <th className="py-2 pr-4">Weight (lbs)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weights
-                  .filter((w) => Number(w.weight_lbs) > 0)
-                  .slice()
-                  .reverse()
-                  .slice(0, 14)
-                  .map((w) => (
-                    <tr key={w.date} className="border-t border-zinc-100">
-                      <td className="py-2 pr-4">{w.date}</td>
-                      <td className="py-2 pr-4">{Number(w.weight_lbs).toFixed(1)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
       </main>
     </div>
   );
