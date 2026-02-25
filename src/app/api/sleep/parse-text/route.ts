@@ -114,17 +114,38 @@ export async function POST(req: Request) {
         let startTs: Date | null = null;
         let endTs: Date | null = null;
 
+        const kv: Record<string, string> = {};
+        let pendingKey: string | null = null;
+
         rest.forEach((chunk) => {
-          const [key, value] = chunk.split("=").map((s) => s.trim());
-          if (!key || !value) return;
-          const normalizedKey = key.toLowerCase();
-          if (normalizedKey === "start") {
-            startTs = parseDateTime(date, value);
-            meta.start = value;
-          } else if (normalizedKey === "end") {
-            endTs = parseDateTime(date, value);
-            meta.end = value;
-          } else {
+          const trimmed = chunk.trim();
+          if (!trimmed) return;
+          const eqIndex = trimmed.indexOf("=");
+          if (eqIndex !== -1) {
+            const key = trimmed.slice(0, eqIndex).trim();
+            const value = trimmed.slice(eqIndex + 1).trim();
+            pendingKey = key;
+            kv[key] = value;
+          } else if (pendingKey) {
+            kv[pendingKey] = `${kv[pendingKey]},${trimmed}`;
+          }
+        });
+
+        const startRaw = kv.Start ?? kv.start;
+        const endRaw = kv.End ?? kv.end;
+
+        if (startRaw) {
+          startTs = parseDateTime(startRaw, date);
+          meta.start = startRaw;
+        }
+        if (endRaw) {
+          endTs = parseDateTime(endRaw, date);
+          meta.end = endRaw;
+        }
+
+        Object.entries(kv).forEach(([key, value]) => {
+          const lower = key.toLowerCase();
+          if (lower !== "start" && lower !== "end") {
             meta[key] = value;
           }
         });
