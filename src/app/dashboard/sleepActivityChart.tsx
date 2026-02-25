@@ -32,7 +32,10 @@ const formatTime = (iso: string) => {
 };
 
 export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
-  const timeline = useMemo(() => sleepTimeline.filter((entry) => entry.duration_minutes > 0), [sleepTimeline]);
+  const timeline = useMemo(
+    () => sleepTimeline.filter((entry) => entry.duration_minutes > 0 && entry.type !== "in_bed"),
+    [sleepTimeline]
+  );
 
   const totalSleep = timeline
     .filter((entry) => SLEEP_STAGES.has(entry.type))
