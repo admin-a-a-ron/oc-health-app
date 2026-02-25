@@ -25,25 +25,43 @@ export function normalizeStage(value?: string | null): SleepStage {
 
 export function durationToMinutes(value: string | number | null | undefined): number {
   if (value === null || value === undefined) return 0;
+
+  const toMinutes = (minutes: number, seconds: number = 0) => minutes + seconds / 60;
+
   if (typeof value === "number" && Number.isFinite(value)) {
+    // Treat numeric payloads as seconds if reasonably large, otherwise minutes
+    if (value > 180) {
+      return Math.max(0, Math.round(value / 60));
+    }
     return Math.max(0, Math.round(value));
   }
+
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return 0;
-    if (trimmed.includes(":")) {
-      const [left, right] = trimmed.split(":").map((part) => part.trim());
-      const minutes = Number(left);
-      const seconds = Number(right);
-      if (Number.isFinite(minutes) && Number.isFinite(seconds)) {
-        return Math.max(0, Math.round(minutes + seconds / 60));
+
+    const parts = trimmed.split(":").map((part) => part.trim()).filter(Boolean);
+    if (parts.length === 3) {
+      const [hours, minutes, seconds] = parts.map(Number);
+      if ([hours, minutes, seconds].every(Number.isFinite)) {
+        return Math.max(0, Math.round(hours * 60 + toMinutes(minutes, seconds)));
       }
     }
-    const asNumber = Number(trimmed);
-    if (Number.isFinite(asNumber)) {
-      return Math.max(0, Math.round(asNumber));
+    if (parts.length === 2) {
+      const [minutes, seconds] = parts.map(Number);
+      if ([minutes, seconds].every(Number.isFinite)) {
+        return Math.max(0, Math.round(toMinutes(minutes, seconds)));
+      }
+    }
+    if (parts.length === 1 && parts[0]) {
+      const single = Number(parts[0]);
+      if (Number.isFinite(single)) {
+        // Assume seconds for single numeric strings
+        return Math.max(0, Math.round(single / 60));
+      }
     }
   }
+
   return 0;
 }
 
