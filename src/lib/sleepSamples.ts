@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type SleepStage = "core" | "rem" | "deep" | "awake" | "unknown" | "total";
+export type SleepStage = "core" | "rem" | "deep" | "awake" | "unknown" | "total" | "in_bed" | "asleep";
 
 export type SleepSampleInsert = {
   sample_ts: string;
@@ -17,6 +17,8 @@ export function normalizeStage(value?: string | null): SleepStage {
   if (stage.includes("rem")) return "rem";
   if (stage.includes("deep")) return "deep";
   if (stage.includes("awake") || stage.includes("wake")) return "awake";
+  if (stage.includes("in bed") || stage === "bed") return "in_bed";
+  if (stage.includes("asleep")) return "asleep";
   if (stage.includes("total")) return "total";
   return "unknown";
 }
