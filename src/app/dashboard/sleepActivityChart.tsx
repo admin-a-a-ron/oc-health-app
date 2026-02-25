@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts";
 
 type SleepTimelineEntry = {
   id: string;
@@ -15,21 +16,16 @@ interface SleepActivityChartProps {
 }
 
 const STAGE_COLORS: Record<string, string> = {
-  core: "bg-indigo-400",
-  rem: "bg-pink-400",
-  deep: "bg-sky-500",
-  asleep: "bg-teal-400",
-  awake: "bg-orange-400",
-  in_bed: "bg-slate-400",
-  unknown: "bg-zinc-300",
+  core: "#818CF8",
+  rem: "#F472B6",
+  deep: "#38BDF8",
+  asleep: "#14B8A6",
+  awake: "#FB923C",
+  in_bed: "#94A3B8",
+  unknown: "#CBD5F5",
 };
 
 const SLEEP_STAGES = new Set(["core", "rem", "deep", "asleep"]);
-
-const formatTime = (iso: string) => {
-  const date = new Date(iso);
-  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-};
 
 export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
   const timeline = useMemo(
@@ -51,7 +47,18 @@ export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
     );
   }
 
-  const timelineTotal = timeline.reduce((sum, entry) => sum + entry.duration_minutes, 0);
+  const summary = useMemo(() => {
+    const bucket = new Map<string, number>();
+    timeline.forEach((entry) => {
+      bucket.set(entry.type, (bucket.get(entry.type) || 0) + entry.duration_minutes);
+    });
+    return Array.from(bucket.entries()).map(([type, minutes]) => ({
+      type,
+      minutes,
+      label: type.replace("_", " ").toUpperCase(),
+      color: STAGE_COLORS[type] ?? STAGE_COLORS.unknown,
+    }));
+  }, [timeline]);
 
   return (
     <div className="space-y-4">
@@ -63,37 +70,40 @@ export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <div className="mb-4 text-sm font-semibold text-zinc-700">Sleep timeline</div>
-        <div className="flex h-10 overflow-hidden rounded-full border border-zinc-200">{
-          timeline.map((entry) => {
-            const color = STAGE_COLORS[entry.type] ?? STAGE_COLORS.unknown;
-            const width = timelineTotal ? `${(entry.duration_minutes / timelineTotal) * 100}%` : "0%";
-            return (
-              <div
-                key={entry.id}
-                className={`${color} relative text-[10px] text-white flex items-center justify-center`}
-                style={{ width }}
-                title={`${entry.type.toUpperCase()} • ${entry.duration_minutes} min`}
-              >
-                {entry.duration_minutes >= 20 ? entry.type.toUpperCase() : null}
-              </div>
-            );
-          })
-        }</div>
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-6">
+        <div>
+          <div className="mb-2 text-sm font-semibold text-zinc-700">Stage breakdown</div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={summary}
+                  dataKey="minutes"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  label={({ name, percent }) => `${name ?? ""} ${(percent ? percent * 100 : 0).toFixed(0)}%`}
+                >
+                  {summary.map((entry) => (
+                    <Cell key={entry.type} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-        <div className="mt-4 space-y-2 text-sm text-zinc-700">
-          {timeline.map((entry) => (
-            <div key={`${entry.id}-details`} className="flex items-center justify-between rounded-md border border-zinc-100 px-3 py-2">
-              <div className="flex items-center gap-3">
-                <span className={`h-2 w-2 rounded-full ${STAGE_COLORS[entry.type] ?? STAGE_COLORS.unknown}`}></span>
+        <div className="grid gap-2 text-sm text-zinc-600">
+          {summary.map((entry) => (
+            <div key={entry.type} className="flex items-center justify-between rounded border border-zinc-100 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }}></span>
                 <span className="font-medium capitalize">{entry.type.replace("_", " ")}</span>
               </div>
-              <div className="text-sm text-zinc-500 flex gap-3">
-                <span>{formatTime(entry.date_time)}</span>
-                <span>•</span>
-                <span>{entry.duration_minutes} min</span>
-              </div>
+              <div className="text-zinc-500">{entry.minutes} min</div>
             </div>
           ))}
         </div>
