@@ -24,12 +24,15 @@ interface NutritionChartProps {
 export function NutritionChart({ metrics }: NutritionChartProps) {
   // Use the most recent completed day (yesterday if today is incomplete)
   const today = new Date().toISOString().slice(0, 10);
+  const hasMacros = (m: DailyMetricsRow | null) => !!m && [m.protein_g, m.carbs_g, m.fat_g, m.calories_in].some((v) => typeof v === 'number');
   const latestMetrics = (() => {
     if (!metrics.length) return null;
-    const completed = metrics.filter((m) => m.date <= today);
-    if (completed.length) {
-      return completed.sort((a, b) => a.date.localeCompare(b.date)).pop() ?? null;
-    }
+    const completed = metrics
+      .filter((m) => m.date < today && hasMacros(m))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (completed.length) return completed.pop() ?? null;
+    const withMacros = metrics.filter((m) => hasMacros(m));
+    if (withMacros.length) return withMacros.sort((a, b) => a.date.localeCompare(b.date)).pop() ?? null;
     return metrics[metrics.length - 1] ?? null;
   })();
 
