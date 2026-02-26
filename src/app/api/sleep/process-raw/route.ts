@@ -54,13 +54,24 @@ const parseDuration = (raw: any): number => {
 const buildDedupKey = (row: Record<string, any>) =>
   SEEN_FIELDS.map((field) => (row[field] ?? "").toString().trim()).join("|");
 
+type ProcessBody = { date?: string | null };
+
 export async function POST(req: Request) {
   if (!verifyBearerAuth(req.headers.get("authorization"))) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
+  const body = (await req.json().catch(() => ({}))) as ProcessBody;
+  const targetDate = body?.date?.trim() || null;
+
   const sb = supabaseAdmin();
-  const { data: rawRows, error } = await sb.from("sleep_data_raw").select("*");
+  let query = sb.from("sleep_data_raw").select("*");
+  if (targetDate) {
+    query = query.eq("bucket_date", targetDate);
+  } else {
+    query = query.is("processed_at", null);
+  }
+  const { data: rawRows, error } = await query;
   if (error) return new NextResponse(error.message, { status: 500 });
 
   const seen = new Set<string>();
@@ -81,7 +92,7 @@ export async function POST(req: Request) {
     if (!minutes) continue;
 
     const bucketSource = startTs?.toISOString() ?? (row.date ? `${row.date}T00:00:00Z` : undefined);
-    const dateBucket = bucketSource ? formatSleepBucket(bucketSource) : null;
+    const dateBucket = row.bucket_date || (bucketSource ? formatSleepBucket(bucketSource) : null);
     if (!dateBucket) continue;
 
     const value = (row.value ?? row.stage ?? row.type ?? "unknown").toString().toLowerCase();
@@ -100,5 +111,16 @@ export async function POST(req: Request) {
   const { error: upsertError } = await sb.from("sleep_data_processed").upsert(rows, { onConflict: "date_bucket,value" });
   if (upsertError) return new NextResponse(upsertError.message, { status: 500 });
 
-  return NextResponse.json({ processed: rows.length, rows });
+  if (rawRows && rawRows.length) {
+    const ids = rawRows.map((row) => row.id).filter(Boolean);
+    if (ids.length) {
+      const { error: markError } = await sb
+        .from("sleep_data_raw")
+        .update({ processed_at: new Date().toISOString() })
+        .in("id", ids);
+      if (markError) console.warn("Failed to mark raw rows processed", markError);
+    }
+  }
+
+  return NextResponse.json({ processed: rows.length, rows, targetDate });
 }
