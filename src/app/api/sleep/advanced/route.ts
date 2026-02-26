@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyBearerAuth } from "@/lib/auth";
 import { durationToMinutes, normalizeStage } from "@/lib/sleepSamples";
+import { formatSleepBucket } from "@/lib/sleepBuckets";
 
 const FALLBACK_TIMEZONE = "T00:00:00-08:00";
 
@@ -53,8 +54,9 @@ export async function POST(req: Request) {
       const duration = Math.max(0, durationToMinutes(stage.duration_minutes as any));
       const normalizedStage = normalizeStage(stage.type);
       const startDate = parseDateTime(date, stage.start_time);
+      const startIso = startDate.toISOString();
       const payload = {
-        date_time: startDate.toISOString(),
+        date_time: startIso,
         type: normalizedStage,
         duration_minutes: duration,
         source,
@@ -65,6 +67,8 @@ export async function POST(req: Request) {
           raw_text: stage.raw_text ?? null,
         },
         created_at: nowIso,
+        sample_start_date_time: startIso,
+        date_bucket: formatSleepBucket(startIso),
       };
       return payload;
     });

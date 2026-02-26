@@ -7,6 +7,7 @@ export type SleepSampleInsert = {
   stage: SleepStage;
   duration_minutes: number;
   raw?: any;
+  start_ts?: string;
 };
 
 const ONE_MINUTE_MS = 60 * 1000;

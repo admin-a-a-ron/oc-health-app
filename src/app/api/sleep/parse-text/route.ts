@@ -10,6 +10,7 @@ import {
   replaceSamplesForDate,
   SleepSampleInsert,
 } from "@/lib/sleepSamples";
+import { formatSleepBucket } from "@/lib/sleepBuckets";
 
 const FALLBACK_TIMEZONE = "T00:00:00-08:00";
 
@@ -65,7 +66,13 @@ export async function POST(req: Request) {
     const sequentialStart = dateToUtcStart(date);
     let cursor = new Date(sequentialStart);
 
-    const addSample = (stageValue: string | null | undefined, minutes: number, raw: any, ts?: Date | null) => {
+    const addSample = (
+      stageValue: string | null | undefined,
+      minutes: number,
+      raw: any,
+      ts?: Date | null,
+      startOverride?: Date | null
+    ) => {
       const normalized = normalizeStage(stageValue);
       const stage = normalized === "total" ? "unknown" : normalized;
       if (!minutes) return;
@@ -73,11 +80,13 @@ export async function POST(req: Request) {
       if (!ts) {
         cursor = addMinutes(cursor, Math.max(1, minutes));
       }
+      const startTs = startOverride ?? timestamp;
       samples.push({
         sample_ts: timestamp.toISOString(),
         stage,
         duration_minutes: minutes,
         raw,
+        start_ts: startTs.toISOString(),
       });
       if (stage === "awake") {
         totals.awake += minutes;
@@ -93,7 +102,7 @@ export async function POST(req: Request) {
         const minutes = durationToMinutes(entry.duration);
         if (!minutes) continue;
         const parsed = parseDateTime(entry.date_time, date);
-        addSample(entry.sleep_type ?? "unknown", minutes, entry, parsed ?? undefined);
+        addSample(entry.sleep_type ?? "unknown", minutes, entry, parsed ?? undefined, parsed ?? null);
       }
     } else if (text) {
       const lines = text
@@ -150,7 +159,7 @@ export async function POST(req: Request) {
           }
         });
 
-        addSample(stage, minutes, meta, startTs ?? undefined);
+        addSample(stage, minutes, meta, startTs ?? undefined, startTs ?? null);
       }
     }
 
@@ -176,13 +185,18 @@ export async function POST(req: Request) {
     if (deleteError) console.warn("Could not delete existing sleep data:", deleteError);
     
     // Insert individual sleep stage records into sleep_data table
-    const sleepRecords = samples.map((sample) => ({
-      date_time: sample.sample_ts,
-      type: sample.stage,
-      duration_minutes: sample.duration_minutes,
-      source,
-      raw: sample.raw ?? null,
-    }));
+    const sleepRecords = samples.map((sample) => {
+      const startTs = sample.start_ts ?? sample.sample_ts;
+      return {
+        date_time: sample.sample_ts,
+        type: sample.stage,
+        duration_minutes: sample.duration_minutes,
+        source,
+        raw: sample.raw ?? null,
+        sample_start_date_time: startTs,
+        date_bucket: formatSleepBucket(startTs),
+      };
+    });
     
     if (sleepRecords.length) {
       const { error: sleepError } = await sb
