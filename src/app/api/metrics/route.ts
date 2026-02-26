@@ -32,10 +32,22 @@ const buildSessionTotals = (rows: SleepRow[]) => {
   const totals = new Map<string, number>();
   const sorted = [...rows].sort((a, b) => Date.parse(a.date_time) - Date.parse(b.date_time));
 
-  let current: { date: string; lastTs: number; total: number } | null = null;
+  type Session = {
+    date: string;
+    lastTs: number;
+    sleepMinutes: number;
+    awakeMinutes: number;
+    inBedMinutes: number;
+  };
+
+  let current: Session | null = null;
   const flush = () => {
-    if (current && current.total > 0) {
-      totals.set(current.date, (totals.get(current.date) || 0) + current.total);
+    if (!current) return;
+    const direct = current.sleepMinutes;
+    const inferred = current.inBedMinutes > 0 ? Math.max(current.inBedMinutes - current.awakeMinutes, 0) : 0;
+    const total = direct > 0 ? direct : inferred;
+    if (total > 0) {
+      totals.set(current.date, (totals.get(current.date) || 0) + total);
     }
   };
 
@@ -48,15 +60,22 @@ const buildSessionTotals = (rows: SleepRow[]) => {
       current = {
         date: toDateInSleepTz(row.date_time),
         lastTs: ts,
-        total: 0,
+        sleepMinutes: 0,
+        awakeMinutes: 0,
+        inBedMinutes: 0,
       };
     } else {
       current.lastTs = ts;
     }
 
     const stage = normalizeStage(row.type);
+    const minutes = row.duration_minutes ?? 0;
     if (SLEEP_STAGES.has(stage)) {
-      current.total += row.duration_minutes ?? 0;
+      current.sleepMinutes += minutes;
+    } else if (stage === "awake") {
+      current.awakeMinutes += minutes;
+    } else if (stage === "in_bed") {
+      current.inBedMinutes += minutes;
     }
   }
 
