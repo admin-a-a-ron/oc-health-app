@@ -108,7 +108,7 @@ export async function replaceSamplesForDate(
 
   if (!samples.length) return;
 
-  const rows = samples.map((sample) => ({
+  const rows = samples.map(({ start_ts, ...sample }) => ({
     ...sample,
     source,
     raw: sample.raw ?? null,
