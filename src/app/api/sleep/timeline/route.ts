@@ -4,13 +4,28 @@ import { verifyBearerAuth } from "@/lib/auth";
 
 const VALID_STAGES = new Set(["core", "rem", "deep", "awake", "in_bed", "asleep"]);
 const SESSION_GAP_MS = 6 * 60 * 60 * 1000; // 6 hours between sleep sessions
+const SLEEP_TIMEZONE = "America/Los_Angeles";
+const dateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SLEEP_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
-const toDateOnly = (date: Date) => date.toISOString().slice(0, 10);
+const toDateInSleepTz = (value: string | Date) => {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = dateFormatter.formatToParts(date);
+  const lookup: Record<string, string> = {};
+  parts.forEach((part) => {
+    lookup[part.type] = part.value;
+  });
+  return `${lookup.year}-${lookup.month}-${lookup.day}`;
+};
 
 const getDefaultDate = () => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
-  return toDateOnly(d);
+  return toDateInSleepTz(d);
 };
 
 type SleepRow = {
@@ -32,7 +47,7 @@ const annotateSessions = (rows: SleepRow[]) => {
     if (Number.isNaN(ts)) continue;
 
     if (!currentDate || ts - lastTs > SESSION_GAP_MS) {
-      currentDate = new Date(row.date_time).toISOString().slice(0, 10);
+      currentDate = toDateInSleepTz(row.date_time);
     }
 
     lastTs = ts;
