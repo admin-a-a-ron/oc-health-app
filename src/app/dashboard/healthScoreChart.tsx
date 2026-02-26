@@ -81,7 +81,7 @@ export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
 
   const weightEntries = metrics
     .map((row) => ({ date: row.date, weight: toNumber(row.weight_lbs) }))
-    .filter((entry): entry is { date: string; weight: number } => entry.weight != null);
+    .filter((entry): entry is { date: string; weight: number } => entry.weight != null && entry.weight > 0);
 
   let weightTrend: number | null = null;
   if (weightEntries.length >= 14) {
