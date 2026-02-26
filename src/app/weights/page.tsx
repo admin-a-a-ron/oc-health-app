@@ -32,6 +32,32 @@ type SleepTimelineEntry = {
   source?: string | null;
 };
 
+
+
+type SummaryTabKey = "yesterday" | "today" | "avg7";
+
+type SummaryData = {
+  dateLabel: string;
+  data: Partial<DailyMetricsRow> | null;
+};
+
+const TAB_OPTIONS: Array<{ id: SummaryTabKey; label: string }> = [
+  { id: "yesterday", label: "Yesterday" },
+  { id: "today", label: "Today so far" },
+  { id: "avg7", label: "7 Day Average" },
+];
+
+const AVERAGE_FIELDS: (keyof DailyMetricsRow)[] = [
+  "steps",
+  "sleep_minutes",
+  "resting_hr",
+  "calories_in",
+  "protein_g",
+  "carbs_g",
+  "fat_g",
+  "active_calories_out",
+  "exercise_minutes",
+];
 export type WeightRow = {
   date: string;
   weight_lbs: number;
@@ -67,10 +93,61 @@ export default function WeightsPage() {
     }
   };
 
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [weight, setWeight] = useState("");
+  const tabSummaries = useMemo(() => {
+    const defaults: Record<SummaryTabKey, SummaryData> = {
+      yesterday: { dateLabel: "—", data: null },
+      today: { dateLabel: "—", data: null },
+      avg7: { dateLabel: "—", data: null },
+    };
+
+    if (!metrics.length) return defaults;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterdayDate = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    const findByDate = (date: string) => metrics.find((row) => row.date === date) ?? null;
+
+    const priorDays = metrics.filter((row) => row.date < today);
+    const fallbackYesterday = priorDays.length ? priorDays[priorDays.length - 1] : null;
+
+    const yesterdayRow = findByDate(yesterdayDate) ?? fallbackYesterday;
+    const todayRow = findByDate(today);
+
+    const lastSeven = metrics.slice(-7);
+    const averageRow = lastSeven.length
+      ? (() => {
+          const avgRow: Partial<DailyMetricsRow> = {};
+          const averageField = (field: keyof DailyMetricsRow) => {
+            const values = lastSeven
+              .map((row) => row[field])
+              .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+            if (!values.length) return null;
+            const sum = values.reduce((acc, value) => acc + value, 0);
+            return Math.round((sum / values.length) * 100) / 100;
+          };
+          AVERAGE_FIELDS.forEach((field) => {
+            avgRow[field] = averageField(field) as any;
+          });
+          return avgRow;
+        })()
+      : null;
+
+    const rangeLabel = lastSeven.length ? `${lastSeven[0].date} – ${lastSeven[lastSeven.length - 1].date}` : "—";
+
+    return {
+      yesterday: { dateLabel: yesterdayRow?.date ?? "—", data: yesterdayRow },
+      today: { dateLabel: todayRow?.date ?? today, data: todayRow },
+      avg7: { dateLabel: rangeLabel, data: averageRow },
+    };
+  }, [metrics]);
+
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<SummaryTabKey>("yesterday");
   const token = useMemo(() => getToken(), []);
 
   useEffect(() => {
@@ -113,52 +190,26 @@ export default function WeightsPage() {
     run();
   }, [router, token]);
 
-  async function onSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!token) {
-      router.replace("/login?next=/dashboard");
-      return;
-    }
-    setErr(null);
-    const res = await fetch("/api/weights", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ date, weight_lbs: weight }),
-    });
-    if (res.status === 401) {
-      clearToken();
-      router.replace("/login?next=/dashboard");
-      return;
-    }
-    if (!res.ok) {
-      setErr(await res.text());
-      return;
-    }
-
-    // Refresh list
-    const refreshed = await fetch("/api/weights", {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    if (refreshed.ok) setWeights(await refreshed.json());
-
-    const mres = await fetch("/api/metrics", {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    if (mres.ok) {
-      const payload = await mres.json();
-      setMetrics(payload);
-      await fetchTimeline(token, payload);
-    }
-
-    setWeight("");
-  }
-
-  const latestMetrics = metrics.length ? metrics[metrics.length - 1] : null;
+  const activeSummary = tabSummaries[activeTab] ?? { dateLabel: "—", data: null };
+  const summaryData = activeSummary.data;
+  const getNumericValue = (key: keyof DailyMetricsRow): number | null => {
+    const value = summaryData?.[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  };
+  const formatNumberValue = (value: number | null) => (value == null ? "—" : value.toLocaleString());
+  const formatSleepHours = (minutes: number | null) => (minutes == null ? "—" : (minutes / 60).toFixed(1));
+  const summaryTiles = [
+    { label: "Date", value: activeSummary.dateLabel ?? "—" },
+    { label: "Steps", value: formatNumberValue(getNumericValue("steps")) },
+    { label: "Sleep (hrs)", value: formatSleepHours(getNumericValue("sleep_minutes")) },
+    { label: "Resting HR", value: formatNumberValue(getNumericValue("resting_hr")) },
+    { label: "Calories in", value: formatNumberValue(getNumericValue("calories_in")) },
+    { label: "Protein (g)", value: formatNumberValue(getNumericValue("protein_g")) },
+    { label: "Carbs (g)", value: formatNumberValue(getNumericValue("carbs_g")) },
+    { label: "Fat (g)", value: formatNumberValue(getNumericValue("fat_g")) },
+    { label: "Calories burned", value: formatNumberValue(getNumericValue("active_calories_out")) },
+    { label: "Exercise (min)", value: formatNumberValue(getNumericValue("exercise_minutes")) },
+  ];
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
@@ -171,99 +222,38 @@ export default function WeightsPage() {
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-6">
-        <section className="rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-zinc-700">Add / update</h2>
-
-          {err ? (
-            <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{err}</p>
-          ) : null}
-
-          <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={onSave}>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm" htmlFor="date">Date</label>
-              <input
-                id="date"
-                name="date"
-                type="date"
-                className="h-10 rounded-md border border-zinc-300 px-3"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm" htmlFor="weight_lbs">Weight (lbs)</label>
-              <input
-                id="weight_lbs"
-                name="weight_lbs"
-                inputMode="decimal"
-                className="h-10 w-40 rounded-md border border-zinc-300 px-3"
-                placeholder="215.4"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                required
-              />
-            </div>
-            <button
-              className="h-10 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
-              type="submit"
-              disabled={loading}
-            >
-              Save
-            </button>
-          </form>
-        </section>
+        {err ? (
+          <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{err}</p>
+        ) : null}
 
         <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-zinc-700">Today / latest sync</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Date</div>
-              <div className="text-sm font-semibold">{latestMetrics?.date ?? "—"}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Steps</div>
-              <div className="text-sm font-semibold">{latestMetrics?.steps ?? "—"}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Sleep (hrs)</div>
-              <div className="text-sm font-semibold">
-                {latestMetrics?.sleep_minutes != null
-                  ? (latestMetrics.sleep_minutes / 60).toFixed(1)
-                  : "—"}
-              </div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Resting HR</div>
-              <div className="text-sm font-semibold">{latestMetrics?.resting_hr ?? "—"}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Calories in</div>
-              <div className="text-sm font-semibold">{latestMetrics?.calories_in ?? "—"}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Protein (g)</div>
-              <div className="text-sm font-semibold">{latestMetrics?.protein_g ?? "—"}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Carbs (g)</div>
-              <div className="text-sm font-semibold">{latestMetrics?.carbs_g ?? "—"}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Fat (g)</div>
-              <div className="text-sm font-semibold">{latestMetrics?.fat_g ?? "—"}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Calories burned</div>
-              <div className="text-sm font-semibold">{latestMetrics?.active_calories_out ?? "—"}</div>
-            </div>
-            <div className="rounded-lg border border-zinc-200 p-3">
-              <div className="text-xs text-zinc-500">Exercise (min)</div>
-              <div className="text-sm font-semibold">{latestMetrics?.exercise_minutes ?? "—"}</div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-sm font-semibold text-zinc-700">Latest Data</h2>
+            <div className="flex flex-wrap gap-2">
+              {TAB_OPTIONS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                    activeTab === tab.id
+                      ? "border-zinc-900 bg-zinc-900 text-white"
+                      : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="mt-2 text-xs text-zinc-500">
-            Updated: {latestMetrics?.updated_at ?? "—"}
+          <div className="mt-2 text-xs text-zinc-500">Range: {activeSummary.dateLabel ?? "—"}</div>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {summaryTiles.map((tile) => (
+              <div key={tile.label} className="rounded-lg border border-zinc-200 p-3">
+                <div className="text-xs text-zinc-500">{tile.label}</div>
+                <div className="text-sm font-semibold">{tile.value}</div>
+              </div>
+            ))}
           </div>
         </section>
 
