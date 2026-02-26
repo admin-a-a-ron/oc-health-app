@@ -13,7 +13,6 @@ type SleepTimelineEntry = {
 
 interface SleepActivityChartProps {
   sleepTimeline: SleepTimelineEntry[];
-  totalSleepMinutes?: number | null;
 }
 
 const STAGE_COLORS: Record<string, string> = {
@@ -28,18 +27,17 @@ const STAGE_COLORS: Record<string, string> = {
 
 const SLEEP_STAGES = new Set(["core", "rem", "deep", "asleep"]);
 
-export function SleepActivityChart({ sleepTimeline, totalSleepMinutes }: SleepActivityChartProps) {
+export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
   const timeline = useMemo(
     () => sleepTimeline.filter((entry) => entry.duration_minutes > 0 && entry.type !== "in_bed"),
     [sleepTimeline]
   );
 
-  const stageTotal = timeline
+  const totalSleep = timeline
     .filter((entry) => SLEEP_STAGES.has(entry.type))
     .reduce((sum, entry) => sum + entry.duration_minutes, 0);
 
-  const totalMinutes = totalSleepMinutes ?? stageTotal;
-  const totalSleepHours = (totalMinutes / 60).toFixed(2);
+  const totalSleepHours = (totalSleep / 60).toFixed(2);
 
   if (!timeline.length) {
     return (

@@ -55,7 +55,6 @@ export default function WeightsPage() {
   const [weights, setWeights] = useState<WeightRow[]>([]);
   const [metrics, setMetrics] = useState<DailyMetricsRow[]>([]);
   const [sleepTimeline, setSleepTimeline] = useState<SleepTimelineEntry[]>([]);
-  const [sleepTotalMinutes, setSleepTotalMinutes] = useState<number | null>(null);
   const fetchTimeline = async (authToken: string, rows: DailyMetricsRow[]) => {
     const targetDate = pickTimelineDate(rows);
     const res = await fetch(`/api/sleep/timeline?date=${targetDate}`, {
@@ -64,12 +63,7 @@ export default function WeightsPage() {
     });
     if (res.ok) {
       const body = await res.json();
-      const entries = (body.entries ?? []).map((entry: SleepTimelineEntry) => ({
-        ...entry,
-        duration_minutes: entry.duration_minutes ?? 0,
-      }));
-      setSleepTimeline(entries);
-      setSleepTotalMinutes(body.total_sleep_minutes ?? null);
+      setSleepTimeline(body.entries ?? []);
     }
   };
 
@@ -299,7 +293,7 @@ export default function WeightsPage() {
             {loading ? (
               <p className="text-sm text-zinc-600">Loading…</p>
             ) : (
-              <SleepActivityChart sleepTimeline={sleepTimeline} totalSleepMinutes={sleepTotalMinutes ?? undefined} />
+              <SleepActivityChart sleepTimeline={sleepTimeline} />
             )}
           </div>
         </section>
