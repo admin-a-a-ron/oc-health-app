@@ -29,6 +29,7 @@ const STAGE_COLORS: Record<string, string> = {
 const SLEEP_STAGES = new Set(["core", "rem", "deep", "asleep"]);
 
 export function SleepActivityChart({ sleepTimeline, rangeLabel = "Last night" }: SleepActivityChartProps) {
+  const labelText = rangeLabel ? `${rangeLabel} · avg/night` : "avg/night";
   const timeline = useMemo(
     () => sleepTimeline.filter((entry) => entry.duration_minutes > 0 && entry.type !== "in_bed"),
     [sleepTimeline]
@@ -67,7 +68,7 @@ export function SleepActivityChart({ sleepTimeline, rangeLabel = "Last night" }:
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-zinc-500">{rangeLabel}</p>
+          <p className="text-sm text-zinc-500">{labelText}</p>
           <p className="text-2xl font-semibold text-zinc-900">{totalSleepHours} hrs asleep</p>
           <p className="text-sm text-zinc-500">(excludes Awake / In Bed segments)</p>
         </div>

@@ -58,6 +58,23 @@ const AVERAGE_FIELDS: (keyof DailyMetricsRow)[] = [
   "active_calories_out",
   "exercise_minutes",
 ];
+
+const computeAverageRow = (rows: DailyMetricsRow[]): Partial<DailyMetricsRow> | null => {
+  if (!rows.length) return null;
+  const avgRow: Partial<DailyMetricsRow> = {};
+  AVERAGE_FIELDS.forEach((field) => {
+    const values = rows
+      .map((row) => row[field])
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    if (!values.length) {
+      avgRow[field] = null as any;
+    } else {
+      const sum = values.reduce((acc, value) => acc + value, 0);
+      avgRow[field] = Math.round((sum / values.length) * 100) / 100 as any;
+    }
+  });
+  return avgRow;
+};
 export type WeightRow = {
   date: string;
   weight_lbs: number;
@@ -114,23 +131,7 @@ export default function WeightsPage() {
     const todayRow = findByDate(today);
 
     const lastSeven = metrics.slice(-7);
-    const averageRow = lastSeven.length
-      ? (() => {
-          const avgRow: Partial<DailyMetricsRow> = {};
-          const averageField = (field: keyof DailyMetricsRow) => {
-            const values = lastSeven
-              .map((row) => row[field])
-              .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-            if (!values.length) return null;
-            const sum = values.reduce((acc, value) => acc + value, 0);
-            return Math.round((sum / values.length) * 100) / 100;
-          };
-          AVERAGE_FIELDS.forEach((field) => {
-            avgRow[field] = averageField(field) as any;
-          });
-          return avgRow;
-        })()
-      : null;
+    const averageRow = computeAverageRow(lastSeven);
 
     const rangeLabel = lastSeven.length ? `${lastSeven[0].date} – ${lastSeven[lastSeven.length - 1].date}` : "—";
 
@@ -200,6 +201,7 @@ export default function WeightsPage() {
   }, [metrics, rangeStart, rangeEnd]);
 
   const nutritionMetrics = filteredMetrics.length ? filteredMetrics : metrics;
+  const nutritionAverage = filteredMetrics.length ? computeAverageRow(filteredMetrics) : null;
 
   const activeSummary = tabSummaries[activeTab] ?? { dateLabel: "—", data: null };
   const summaryData = activeSummary.data;
@@ -360,7 +362,7 @@ export default function WeightsPage() {
             {loading ? (
               <p className="text-sm text-zinc-600">Loading…</p>
             ) : (
-              <NutritionChart metrics={nutritionMetrics} />
+              <NutritionChart metrics={nutritionMetrics} averageRow={nutritionAverage ?? undefined} rangeLabel={sleepRangeLabel} />
             )}
           </div>
         </section>

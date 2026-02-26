@@ -53,14 +53,24 @@ export async function GET(req: Request) {
     aggregated.set(stage, entry);
   });
 
-  const entries = Array.from(aggregated.entries()).map(([stage, info], idx) => ({
-    id: `${rangeStart}-${rangeEnd}-${stage}-${idx}`,
-    date_time: `${rangeEnd}T00:00:00Z`,
-    type: stage,
-    duration_minutes: info.minutes,
-    source: "sleep_data_processed",
-    raw: { sample_count: info.samples, date_range: { start: rangeStart, end: rangeEnd } },
-  }));
+  const uniqueDates = new Set((data || []).map((row) => row.date_bucket)).size || 1;
 
-  return NextResponse.json({ date: rangeEnd, entries });
+  const entries = Array.from(aggregated.entries()).map(([stage, info], idx) => {
+    const avgMinutes = info.minutes / uniqueDates;
+    return {
+      id: `${rangeStart}-${rangeEnd}-${stage}-${idx}`,
+      date_time: `${rangeEnd}T00:00:00Z`,
+      type: stage,
+      duration_minutes: avgMinutes,
+      source: "sleep_data_processed",
+      raw: {
+        sample_count: info.samples,
+        date_range: { start: rangeStart, end: rangeEnd },
+        total_minutes: info.minutes,
+        days: uniqueDates,
+      },
+    };
+  });
+
+  return NextResponse.json({ date: rangeEnd, days: uniqueDates, entries });
 }
