@@ -4,6 +4,49 @@ import { verifyBearerAuth } from "@/lib/auth";
 import { normalizeStage } from "@/lib/sleepSamples";
 
 const SLEEP_STAGES = new Set(["core", "rem", "deep", "asleep"]);
+const SESSION_GAP_MS = 6 * 60 * 60 * 1000; // 6 hours between sessions
+
+type SleepRow = {
+  date_time: string;
+  type: string;
+  duration_minutes: number | null;
+};
+
+const buildSessionTotals = (rows: SleepRow[]) => {
+  const totals = new Map<string, number>();
+  const sorted = [...rows].sort((a, b) => Date.parse(a.date_time) - Date.parse(b.date_time));
+
+  let current: { date: string; lastTs: number; total: number } | null = null;
+  const flush = () => {
+    if (current && current.total > 0) {
+      totals.set(current.date, (totals.get(current.date) || 0) + current.total);
+    }
+  };
+
+  for (const row of sorted) {
+    const ts = Date.parse(row.date_time);
+    if (Number.isNaN(ts)) continue;
+
+    if (!current || ts - current.lastTs > SESSION_GAP_MS) {
+      flush();
+      current = {
+        date: new Date(row.date_time).toISOString().slice(0, 10),
+        lastTs: ts,
+        total: 0,
+      };
+    } else {
+      current.lastTs = ts;
+    }
+
+    const stage = normalizeStage(row.type);
+    if (SLEEP_STAGES.has(stage)) {
+      current.total += row.duration_minutes ?? 0;
+    }
+  }
+
+  flush();
+  return totals;
+};
 
 export async function GET(req: Request) {
   if (!verifyBearerAuth(req.headers.get("authorization"))) {
@@ -28,18 +71,12 @@ export async function GET(req: Request) {
     .from("sleep_data")
     .select("date_time,type,duration_minutes")
     .gte("date_time", `${earliestDate}T00:00:00Z`)
-    .lte("date_time", `${latestDate}T23:59:59Z`);
+    .lte("date_time", `${latestDate}T23:59:59Z`)
+    .order("date_time", { ascending: true });
 
   if (sleepError) return new NextResponse(sleepError.message, { status: 500 });
 
-  const sleepTotals = new Map<string, number>();
-  (sleepRows || []).forEach((row) => {
-    const stage = normalizeStage(row.type);
-    if (!SLEEP_STAGES.has(stage)) return;
-    const date = row.date_time?.slice(0, 10);
-    if (!date) return;
-    sleepTotals.set(date, (sleepTotals.get(date) || 0) + (row.duration_minutes || 0));
-  });
+  const sleepTotals = buildSessionTotals(sleepRows ?? []);
 
   const enriched = metrics.map((row) => ({
     ...row,
