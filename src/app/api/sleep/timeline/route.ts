@@ -5,6 +5,7 @@ import { verifyBearerAuth } from "@/lib/auth";
 const VALID_STAGES = new Set(["core", "rem", "deep", "awake", "in_bed", "asleep"]);
 const SESSION_GAP_MS = 6 * 60 * 60 * 1000; // 6 hours between sleep sessions
 const SLEEP_TIMEZONE = "America/Los_Angeles";
+const HALF_DAY_MS = 12 * 60 * 60 * 1000;
 const dateFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: SLEEP_TIMEZONE,
   year: "numeric",
@@ -12,8 +13,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
-const toDateInSleepTz = (value: string | Date) => {
-  const date = typeof value === "string" ? new Date(value) : value;
+const formatDate = (date: Date) => {
   const parts = dateFormatter.formatToParts(date);
   const lookup: Record<string, string> = {};
   parts.forEach((part) => {
@@ -22,10 +22,16 @@ const toDateInSleepTz = (value: string | Date) => {
   return `${lookup.year}-${lookup.month}-${lookup.day}`;
 };
 
+const toSleepDate = (value: string | Date) => {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const shifted = new Date(date.getTime() + HALF_DAY_MS);
+  return formatDate(shifted);
+};
+
 const getDefaultDate = () => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
-  return toDateInSleepTz(d);
+  return toSleepDate(d);
 };
 
 type SleepRow = {
@@ -47,7 +53,7 @@ const annotateSessions = (rows: SleepRow[]) => {
     if (Number.isNaN(ts)) continue;
 
     if (!currentDate || ts - lastTs > SESSION_GAP_MS) {
-      currentDate = toDateInSleepTz(row.date_time);
+      currentDate = toSleepDate(row.date_time);
     }
 
     lastTs = ts;
