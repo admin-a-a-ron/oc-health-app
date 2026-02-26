@@ -26,6 +26,17 @@ const average = (values: number[]) => {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 };
 
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+const clampScore = (value: number) => Math.max(0, Math.min(100, value));
+
 export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
   const windowed = metrics.slice(-7);
   if (!windowed.length) {
@@ -68,18 +79,30 @@ export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
   ).length;
   const consistency = Math.round((daysWithData / windowed.length) * 100);
 
-  const weightEntries = metrics.filter((m) => m.weight_lbs != null);
-  let weightTrend = 50;
+  const weightEntries = metrics
+    .map((row) => ({ date: row.date, weight: toNumber(row.weight_lbs) }))
+    .filter((entry): entry is { date: string; weight: number } => entry.weight != null);
+
+  let weightTrend: number | null = null;
   if (weightEntries.length >= 14) {
     const recent = weightEntries.slice(-7);
     const prior = weightEntries.slice(-14, -7);
-    const avgRecent = average(recent.map((m) => m.weight_lbs ?? 0));
-    const avgPrior = average(prior.map((m) => m.weight_lbs ?? 0));
+    const avgRecent = average(recent.map((m) => m.weight));
+    const avgPrior = average(prior.map((m) => m.weight));
     if (avgRecent != null && avgPrior != null && avgPrior !== 0) {
       const change = ((avgPrior - avgRecent) / avgPrior) * 100;
-      weightTrend = Math.max(0, Math.min(100, 50 + change * 5));
+      weightTrend = clampScore(50 + change * 5);
+    }
+  } else if (weightEntries.length >= 2) {
+    const first = weightEntries[0].weight;
+    const last = weightEntries[weightEntries.length - 1].weight;
+    if (first !== 0) {
+      const change = ((first - last) / first) * 100;
+      weightTrend = clampScore(50 + change * 4);
     }
   }
+
+  const resolvedWeightTrend = weightTrend ?? 50;
 
   const scores = {
     sleep: Math.round(sleepScore),
@@ -87,7 +110,7 @@ export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
     nutrition: Math.round(nutritionScore),
     heartHealth: Math.round(Math.max(0, Math.min(100, heartHealth))),
     consistency,
-    weightTrend: Math.round(weightTrend),
+    weightTrend: Math.round(resolvedWeightTrend),
   };
 
   const radarData = [
