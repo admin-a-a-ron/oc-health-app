@@ -6,7 +6,6 @@ import { normalizeStage } from "@/lib/sleepSamples";
 const SLEEP_STAGES = new Set(["core", "rem", "deep", "asleep"]);
 const SESSION_GAP_MS = 6 * 60 * 60 * 1000; // 6 hours between sessions
 const SLEEP_TIMEZONE = "America/Los_Angeles";
-const HALF_DAY_MS = 12 * 60 * 60 * 1000;
 const dateFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: SLEEP_TIMEZONE,
   year: "numeric",
@@ -14,9 +13,8 @@ const dateFormatter = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
-const toDateInSleepTz = (value: string | Date) => {
-  const date = typeof value === "string" ? new Date(value) : value;
-  const parts = dateFormatter.formatToParts(date);
+const toDateInSleepTz = (iso: string) => {
+  const parts = dateFormatter.formatToParts(new Date(iso));
   const lookup: Record<string, string> = {};
   for (const part of parts) {
     lookup[part.type] = part.value;
@@ -47,7 +45,7 @@ const buildSessionTotals = (rows: SleepRow[]) => {
     if (!current) return;
     const direct = current.sleepMinutes;
     const inferred = current.inBedMinutes > 0 ? Math.max(current.inBedMinutes - current.awakeMinutes, 0) : 0;
-    const total = Math.max(direct, inferred);
+    const total = direct > 0 ? direct : inferred;
     if (total > 0) {
       totals.set(current.date, (totals.get(current.date) || 0) + total);
     }
@@ -60,7 +58,7 @@ const buildSessionTotals = (rows: SleepRow[]) => {
     if (!current || ts - current.lastTs > SESSION_GAP_MS) {
       flush();
       current = {
-        date: toDateInSleepTz(new Date(ts + HALF_DAY_MS)),
+        date: toDateInSleepTz(row.date_time),
         lastTs: ts,
         sleepMinutes: 0,
         awakeMinutes: 0,
