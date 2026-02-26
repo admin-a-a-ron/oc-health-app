@@ -49,9 +49,11 @@ export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
 
   const summary = useMemo(() => {
     const bucket = new Map<string, number>();
-    timeline.forEach((entry) => {
-      bucket.set(entry.type, (bucket.get(entry.type) || 0) + entry.duration_minutes);
-    });
+    timeline
+      .filter((entry) => SLEEP_STAGES.has(entry.type))
+      .forEach((entry) => {
+        bucket.set(entry.type, (bucket.get(entry.type) || 0) + entry.duration_minutes);
+      });
     return Array.from(bucket.entries()).map(([type, minutes]) => ({
       type,
       minutes,
