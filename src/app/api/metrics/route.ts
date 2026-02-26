@@ -5,22 +5,6 @@ import { normalizeStage } from "@/lib/sleepSamples";
 
 const SLEEP_STAGES = new Set(["core", "rem", "deep", "asleep"]);
 const SESSION_GAP_MS = 6 * 60 * 60 * 1000; // 6 hours between sessions
-const SLEEP_TIMEZONE = "America/Los_Angeles";
-const dateFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: SLEEP_TIMEZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-const toDateInSleepTz = (iso: string) => {
-  const parts = dateFormatter.formatToParts(new Date(iso));
-  const lookup: Record<string, string> = {};
-  for (const part of parts) {
-    lookup[part.type] = part.value;
-  }
-  return `${lookup.year}-${lookup.month}-${lookup.day}`;
-};
 
 type SleepRow = {
   date_time: string;
@@ -46,7 +30,7 @@ const buildSessionTotals = (rows: SleepRow[]) => {
     if (!current || ts - current.lastTs > SESSION_GAP_MS) {
       flush();
       current = {
-        date: toDateInSleepTz(row.date_time),
+        date: new Date(row.date_time).toISOString().slice(0, 10),
         lastTs: ts,
         total: 0,
       };
