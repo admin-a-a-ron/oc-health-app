@@ -63,27 +63,23 @@ export type WeightRow = {
   weight_lbs: number;
 };
 
+const defaultRangeDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+};
+
 export default function WeightsPage() {
-  const pickTimelineDate = (rows: DailyMetricsRow[]) => {
-    if (!rows.length) {
-      const fallback = new Date();
-      fallback.setDate(fallback.getDate() - 1);
-      return fallback.toISOString().slice(0, 10);
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    const completed = rows.filter((row) => row.date < today && (row.sleep_minutes ?? 0) > 0);
-    if (completed.length) return completed[completed.length - 1].date;
-    return rows[rows.length - 1].date;
-  };
-
-
   const router = useRouter();
   const [weights, setWeights] = useState<WeightRow[]>([]);
   const [metrics, setMetrics] = useState<DailyMetricsRow[]>([]);
   const [sleepTimeline, setSleepTimeline] = useState<SleepTimelineEntry[]>([]);
-  const fetchTimeline = async (authToken: string, rows: DailyMetricsRow[]) => {
-    const targetDate = pickTimelineDate(rows);
-    const res = await fetch(`/api/sleep/timeline?date=${targetDate}`, {
+  const fetchTimeline = async (authToken: string, start: string, end: string) => {
+    if (!start || !end) return;
+    const params = new URLSearchParams();
+    params.set("start", start);
+    params.set("end", end);
+    const res = await fetch(`/api/sleep/timeline?${params.toString()}`, {
       headers: { Authorization: `Bearer ${authToken}` },
       cache: "no-store",
     });
@@ -148,6 +144,8 @@ export default function WeightsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<SummaryTabKey>("yesterday");
+  const [rangeStart, setRangeStart] = useState(defaultRangeDate);
+  const [rangeEnd, setRangeEnd] = useState(defaultRangeDate);
   const token = useMemo(() => getToken(), []);
 
   useEffect(() => {
@@ -182,13 +180,26 @@ export default function WeightsPage() {
       if (mres.ok) {
         const payload = (await mres.json()) as DailyMetricsRow[];
         setMetrics(payload);
-        await fetchTimeline(token, payload);
+        await fetchTimeline(token, rangeStart, rangeEnd);
       }
 
       setLoading(false);
     }
     run();
   }, [router, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchTimeline(token, rangeStart, rangeEnd);
+  }, [token, rangeStart, rangeEnd]);
+
+  const filteredMetrics = useMemo(() => {
+    if (!metrics.length) return [];
+    if (!rangeStart || !rangeEnd) return metrics;
+    return metrics.filter((row) => row.date >= rangeStart && row.date <= rangeEnd);
+  }, [metrics, rangeStart, rangeEnd]);
+
+  const nutritionMetrics = filteredMetrics.length ? filteredMetrics : metrics;
 
   const activeSummary = tabSummaries[activeTab] ?? { dateLabel: "—", data: null };
   const summaryData = activeSummary.data;
@@ -198,6 +209,22 @@ export default function WeightsPage() {
   };
   const formatNumberValue = (value: number | null) => (value == null ? "—" : value.toLocaleString());
   const formatSleepHours = (minutes: number | null) => (minutes == null ? "—" : (minutes / 60).toFixed(1));
+  const handleRangeStartChange = (value: string) => {
+    if (!value) return;
+    setRangeStart(value);
+    if (rangeEnd && value > rangeEnd) {
+      setRangeEnd(value);
+    }
+  };
+
+  const handleRangeEndChange = (value: string) => {
+    if (!value) return;
+    setRangeEnd(value);
+    if (rangeStart && value < rangeStart) {
+      setRangeStart(value);
+    }
+  };
+
   const summaryTiles = [
     { label: "Date", value: activeSummary.dateLabel ?? "—" },
     { label: "Steps", value: formatNumberValue(getNumericValue("steps")) },
@@ -210,6 +237,8 @@ export default function WeightsPage() {
     { label: "Calories burned", value: formatNumberValue(getNumericValue("active_calories_out")) },
     { label: "Exercise (min)", value: formatNumberValue(getNumericValue("exercise_minutes")) },
   ];
+
+  const sleepRangeLabel = rangeStart === rangeEnd ? rangeStart : `${rangeStart} – ${rangeEnd}`;
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
@@ -269,34 +298,69 @@ export default function WeightsPage() {
         </section>
 
         <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-zinc-700">Sleep & Activity Timeline</h2>
-          <div className="mt-4">
-            {loading ? (
-              <p className="text-sm text-zinc-600">Loading…</p>
-            ) : (
-              <SleepActivityChart sleepTimeline={sleepTimeline} />
-            )}
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-zinc-700">Nutrition Dashboard</h2>
-          <div className="mt-4">
-            {loading ? (
-              <p className="text-sm text-zinc-600">Loading…</p>
-            ) : (
-              <NutritionChart metrics={metrics} />
-            )}
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-zinc-700">Health Score Analysis</h2>
           <div className="mt-4">
             {loading ? (
               <p className="text-sm text-zinc-600">Loading…</p>
             ) : (
               <HealthScoreChart metrics={metrics} />
+            )}
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-zinc-700">Sleep & Nutrition Range</h2>
+          <p className="mt-1 text-xs text-zinc-500">Adjust the date range to update the sleep breakdown and nutrition charts below.</p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex flex-1 flex-col gap-1">
+              <label className="text-xs font-medium text-zinc-600" htmlFor="range_start">Start</label>
+              <input
+                id="range_start"
+                type="date"
+                className="h-10 rounded-md border border-zinc-300 px-3 text-sm"
+                value={rangeStart}
+                max={rangeEnd}
+                onChange={(e) => handleRangeStartChange(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-1 flex-col gap-1">
+              <label className="text-xs font-medium text-zinc-600" htmlFor="range_end">End</label>
+              <input
+                id="range_end"
+                type="date"
+                className="h-10 rounded-md border border-zinc-300 px-3 text-sm"
+                value={rangeEnd}
+                min={rangeStart}
+                onChange={(e) => handleRangeEndChange(e.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-700">Sleep & Activity Timeline</h2>
+            <p className="text-xs text-zinc-500">Range: {sleepRangeLabel}</p>
+          </div>
+          <div className="mt-4">
+            {loading ? (
+              <p className="text-sm text-zinc-600">Loading…</p>
+            ) : (
+              <SleepActivityChart sleepTimeline={sleepTimeline} rangeLabel={sleepRangeLabel} />
+            )}
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-700">Nutrition Dashboard</h2>
+            <p className="text-xs text-zinc-500">Range: {sleepRangeLabel}</p>
+          </div>
+          <div className="mt-4">
+            {loading ? (
+              <p className="text-sm text-zinc-600">Loading…</p>
+            ) : (
+              <NutritionChart metrics={nutritionMetrics} />
             )}
           </div>
         </section>

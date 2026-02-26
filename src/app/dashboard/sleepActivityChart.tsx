@@ -13,6 +13,7 @@ type SleepTimelineEntry = {
 
 interface SleepActivityChartProps {
   sleepTimeline: SleepTimelineEntry[];
+  rangeLabel?: string;
 }
 
 const STAGE_COLORS: Record<string, string> = {
@@ -27,7 +28,7 @@ const STAGE_COLORS: Record<string, string> = {
 
 const SLEEP_STAGES = new Set(["core", "rem", "deep", "asleep"]);
 
-export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
+export function SleepActivityChart({ sleepTimeline, rangeLabel = "Last night" }: SleepActivityChartProps) {
   const timeline = useMemo(
     () => sleepTimeline.filter((entry) => entry.duration_minutes > 0 && entry.type !== "in_bed"),
     [sleepTimeline]
@@ -42,7 +43,7 @@ export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
   if (!timeline.length) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
-        No sleep timeline data for yesterday yet. Import your sleep entry to see the full breakdown.
+        No sleep timeline data for {rangeLabel} yet. Import your sleep entry to see the full breakdown.
       </div>
     );
   }
@@ -66,7 +67,7 @@ export function SleepActivityChart({ sleepTimeline }: SleepActivityChartProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-zinc-500">Last night</p>
+          <p className="text-sm text-zinc-500">{rangeLabel}</p>
           <p className="text-2xl font-semibold text-zinc-900">{totalSleepHours} hrs asleep</p>
           <p className="text-sm text-zinc-500">(excludes Awake / In Bed segments)</p>
         </div>

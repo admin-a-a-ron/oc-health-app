@@ -19,31 +19,48 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const targetDate = searchParams.get("date") || getDefaultDate();
+  const startParam = searchParams.get("start");
+  const endParam = searchParams.get("end");
+  const singleDate = searchParams.get("date") || null;
+
+  let rangeStart = startParam || endParam || singleDate || getDefaultDate();
+  let rangeEnd = endParam || startParam || singleDate || rangeStart;
+
+  if (rangeStart > rangeEnd) {
+    const tmp = rangeStart;
+    rangeStart = rangeEnd;
+    rangeEnd = tmp;
+  }
 
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("sleep_data_processed")
     .select("date_bucket,value,total_minutes,sample_count")
-    .eq("date_bucket", targetDate)
-    .order("value", { ascending: true });
+    .gte("date_bucket", rangeStart)
+    .lte("date_bucket", rangeEnd)
+    .order("date_bucket", { ascending: true });
 
   if (error) return new NextResponse(error.message, { status: 500 });
 
-  const entries = (data || [])
-    .map((row, idx) => {
-      const stage = normalizeStage(row.value);
-      if (!VALID_STAGES.has(stage)) return null;
-      return {
-        id: `${row.date_bucket}-${stage}-${idx}`,
-        date_time: `${row.date_bucket}T00:00:00Z`,
-        type: stage,
-        duration_minutes: row.total_minutes || 0,
-        source: "sleep_data_processed",
-        raw: { sample_count: row.sample_count ?? 0 },
-      };
-    })
-    .filter(Boolean);
+  const aggregated = new Map<string, { minutes: number; samples: number }>();
 
-  return NextResponse.json({ date: targetDate, entries });
+  (data || []).forEach((row) => {
+    const stage = normalizeStage(row.value);
+    if (!VALID_STAGES.has(stage)) return;
+    const entry = aggregated.get(stage) || { minutes: 0, samples: 0 };
+    entry.minutes += row.total_minutes || 0;
+    entry.samples += row.sample_count || 0;
+    aggregated.set(stage, entry);
+  });
+
+  const entries = Array.from(aggregated.entries()).map(([stage, info], idx) => ({
+    id: `${rangeStart}-${rangeEnd}-${stage}-${idx}`,
+    date_time: `${rangeEnd}T00:00:00Z`,
+    type: stage,
+    duration_minutes: info.minutes,
+    source: "sleep_data_processed",
+    raw: { sample_count: info.samples, date_range: { start: rangeStart, end: rangeEnd } },
+  }));
+
+  return NextResponse.json({ date: rangeEnd, entries });
 }
