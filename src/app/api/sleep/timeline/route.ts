@@ -63,6 +63,44 @@ const annotateSessions = (rows: SleepRow[]) => {
   return annotated;
 };
 
+const summarizeSession = (rows: (SleepRow & { sleep_date: string })[]) => {
+  let stageMinutes = 0;
+  let awakeMinutes = 0;
+  let inBedMinutes = 0;
+
+  rows.forEach((row) => {
+    const minutes = row.duration_minutes || 0;
+    if (["core", "rem", "deep", "asleep"].includes(row.type)) {
+      stageMinutes += minutes;
+    } else if (row.type === "awake") {
+      awakeMinutes += minutes;
+    } else if (row.type === "in_bed") {
+      inBedMinutes += minutes;
+    }
+  });
+
+  const inferred = inBedMinutes > 0 ? Math.max(inBedMinutes - awakeMinutes, 0) : 0;
+  const totalSleep = Math.max(stageMinutes, inferred);
+
+  const cleaned = rows.map(({ sleep_date, ...rest }) => ({
+    ...rest,
+    duration_minutes: rest.duration_minutes || 0,
+  }));
+
+  if (totalSleep > stageMinutes) {
+    cleaned.push({
+      id: `inferred-${rows[rows.length - 1]?.id ?? "fallback"}`,
+      date_time: rows[rows.length - 1]?.date_time ?? new Date().toISOString(),
+      type: "asleep",
+      duration_minutes: totalSleep - stageMinutes,
+      source: "inferred",
+      raw: { note: "inferred_from_in_bed" },
+    });
+  }
+
+  return { entries: cleaned, totalSleepMinutes: totalSleep };
+};
+
 const buildWindowForDate = (dateString?: string) => {
   if (!dateString) {
     const end = new Date();
@@ -98,7 +136,7 @@ export async function GET(req: Request) {
   const annotated = annotateSessions((data || []).filter((row) => VALID_STAGES.has(row.type)));
 
   if (!annotated.length) {
-    return NextResponse.json({ date: requestedDate ?? getDefaultDate(), entries: [] });
+    return NextResponse.json({ date: requestedDate ?? getDefaultDate(), entries: [], total_sleep_minutes: 0 });
   }
 
   let targetDate = requestedDate;
@@ -106,7 +144,12 @@ export async function GET(req: Request) {
     targetDate = annotated[annotated.length - 1]?.sleep_date ?? getDefaultDate();
   }
 
-  const entries = annotated.filter((row) => row.sleep_date === targetDate);
+  const sessionRows = annotated.filter((row) => row.sleep_date === targetDate);
+  if (!sessionRows.length) {
+    return NextResponse.json({ date: targetDate, entries: [], total_sleep_minutes: 0 });
+  }
 
-  return NextResponse.json({ date: targetDate, entries });
+  const { entries, totalSleepMinutes } = summarizeSession(sessionRows);
+
+  return NextResponse.json({ date: targetDate, entries, total_sleep_minutes: totalSleepMinutes });
 }
