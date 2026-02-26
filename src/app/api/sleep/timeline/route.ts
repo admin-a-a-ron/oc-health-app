@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { verifyBearerAuth } from "@/lib/auth";
+import { normalizeStage } from "@/lib/sleepSamples";
 
 const VALID_STAGES = new Set(["core", "rem", "deep", "awake", "in_bed", "asleep"]);
 
@@ -20,28 +21,29 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const targetDate = searchParams.get("date") || getDefaultDate();
 
-  const start = new Date(`${targetDate}T00:00:00Z`).toISOString();
-  const endDate = new Date(`${targetDate}T00:00:00Z`);
-  endDate.setUTCDate(endDate.getUTCDate() + 1);
-  const end = endDate.toISOString();
-
   const sb = supabaseAdmin();
   const { data, error } = await sb
-    .from("sleep_data")
-    .select("id,date_time,type,duration_minutes,source,raw")
-    .gte("date_time", start)
-    .lt("date_time", end)
-    .order("date_time", { ascending: true });
+    .from("sleep_data_processed")
+    .select("date_bucket,value,total_minutes,sample_count")
+    .eq("date_bucket", targetDate)
+    .order("value", { ascending: true });
 
   if (error) return new NextResponse(error.message, { status: 500 });
 
   const entries = (data || [])
-    .filter((row) => VALID_STAGES.has(row.type))
-    .map((row) => ({
-      ...row,
-      date_time: row.date_time,
-      duration_minutes: row.duration_minutes || 0,
-    }));
+    .map((row, idx) => {
+      const stage = normalizeStage(row.value);
+      if (!VALID_STAGES.has(stage)) return null;
+      return {
+        id: `${row.date_bucket}-${stage}-${idx}`,
+        date_time: `${row.date_bucket}T00:00:00Z`,
+        type: stage,
+        duration_minutes: row.total_minutes || 0,
+        source: "sleep_data_processed",
+        raw: { sample_count: row.sample_count ?? 0 },
+      };
+    })
+    .filter(Boolean);
 
   return NextResponse.json({ date: targetDate, entries });
 }

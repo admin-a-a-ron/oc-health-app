@@ -25,20 +25,20 @@ export async function GET(req: Request) {
   const latestDate = metrics[metrics.length - 1].date;
 
   const { data: sleepRows, error: sleepError } = await sb
-    .from("sleep_data")
-    .select("date_time,type,duration_minutes")
-    .gte("date_time", `${earliestDate}T00:00:00Z`)
-    .lte("date_time", `${latestDate}T23:59:59Z`);
+    .from("sleep_data_processed")
+    .select("date_bucket,value,total_minutes")
+    .gte("date_bucket", earliestDate)
+    .lte("date_bucket", latestDate);
 
   if (sleepError) return new NextResponse(sleepError.message, { status: 500 });
 
   const sleepTotals = new Map<string, number>();
   (sleepRows || []).forEach((row) => {
-    const stage = normalizeStage(row.type);
+    const stage = normalizeStage(row.value);
     if (!SLEEP_STAGES.has(stage)) return;
-    const date = row.date_time?.slice(0, 10);
+    const date = row.date_bucket;
     if (!date) return;
-    sleepTotals.set(date, (sleepTotals.get(date) || 0) + (row.duration_minutes || 0));
+    sleepTotals.set(date, (sleepTotals.get(date) || 0) + (row.total_minutes || 0));
   });
 
   const enriched = metrics.map((row) => ({
