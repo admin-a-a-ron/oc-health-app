@@ -158,16 +158,7 @@ export default function WeightsPage() {
     setWeight("");
   }
 
-  const latestMetrics = metrics.length
-    ? metrics
-        .filter((m) =>
-          m.sleep_minutes != null ||
-          m.steps != null ||
-          m.resting_hr != null ||
-          m.calories_in != null
-        )
-        .pop() ?? metrics[metrics.length - 1]
-    : null;
+  const latestMetrics = metrics.length ? metrics[metrics.length - 1] : null;
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
