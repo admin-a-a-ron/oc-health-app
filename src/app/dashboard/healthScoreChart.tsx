@@ -48,15 +48,26 @@ export function HealthScoreChart({ metrics, onCategoryClick }: HealthScoreChartP
     );
   }
 
-  const sleepHours = average(windowed.map((m) => (m.sleep_minutes ?? 0) / 60)) ?? 0;
+  // Sleep: exclude null/0 values (treat as missed logs, not actual 0)
+  const sleepMinutes = windowed
+    .map((m) => m.sleep_minutes)
+    .filter((v): v is number => v != null && v > 0);
+  const sleepHours = average(sleepMinutes.map((m) => m / 60)) ?? 0;
   const sleepScore = Math.max(0, Math.min(100, (sleepHours / 8) * 100));
 
   const avgSteps = average(windowed.map((m) => m.steps ?? 0)) ?? 0;
   const avgExercise = average(windowed.map((m) => m.exercise_minutes ?? 0)) ?? 0;
   const activityScore = Math.round(Math.min(100, (avgSteps / 8000) * 100) * 0.6 + Math.min(100, (avgExercise / 30) * 100) * 0.4);
 
-  const avgProtein = average(windowed.map((m) => m.protein_g ?? 0)) ?? 0;
-  const avgCalories = average(windowed.map((m) => m.calories_in ?? 0)) ?? 0;
+  // Nutrition: exclude null/0 values (treat as missed logs, not actual 0)
+  const proteinVals = windowed
+    .map((m) => m.protein_g)
+    .filter((v): v is number => v != null && v > 0);
+  const calorieVals = windowed
+    .map((m) => m.calories_in)
+    .filter((v): v is number => v != null && v > 0);
+  const avgProtein = average(proteinVals) ?? 0;
+  const avgCalories = average(calorieVals) ?? 0;
   let nutritionScore = 0;
   if (avgCalories > 0) {
     const proteinPercent = (avgProtein * 4) / avgCalories;
@@ -65,7 +76,11 @@ export function HealthScoreChart({ metrics, onCategoryClick }: HealthScoreChartP
     nutritionScore = Math.round((proteinScore + balanceScore) / 2);
   }
 
-  const avgResting = average(windowed.map((m) => m.resting_hr ?? 0));
+  // Heart health: exclude null/0 values (treat as missed logs, not actual 0)
+  const restingHRVals = windowed
+    .map((m) => m.resting_hr)
+    .filter((v): v is number => v != null && v > 0);
+  const avgResting = average(restingHRVals);
   let heartHealth = 0;
   if (avgResting != null) {
     if (avgResting >= 60 && avgResting <= 80) {

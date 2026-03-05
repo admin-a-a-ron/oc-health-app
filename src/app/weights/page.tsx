@@ -63,10 +63,20 @@ const AVERAGE_FIELDS: (keyof DailyMetricsRow)[] = [
 const computeAverageRow = (rows: DailyMetricsRow[]): Partial<DailyMetricsRow> | null => {
   if (!rows.length) return null;
   const avgRow: Partial<DailyMetricsRow> = {};
+  
+  // Fields that should exclude 0 values (treat as missed logs)
+  const excludeZeroFields = new Set(["sleep_minutes", "calories_in", "protein_g", "carbs_g", "fat_g", "resting_hr"]);
+  
   AVERAGE_FIELDS.forEach((field) => {
-    const values = rows
+    let values = rows
       .map((row) => row[field])
       .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    
+    // For certain fields, exclude 0 values (missed logs)
+    if (excludeZeroFields.has(field)) {
+      values = values.filter((value) => value > 0);
+    }
+    
     if (!values.length) {
       avgRow[field] = null as any;
     } else {
