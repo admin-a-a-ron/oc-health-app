@@ -101,20 +101,24 @@ export async function GET(req: Request) {
   }
 
   if (category === "weight") {
-    // Fetch weight data
+    // Fetch weight data from daily_metrics
     const { data, error } = await sb
-      .from("weights")
+      .from("daily_metrics")
       .select("date, weight_lbs")
+      .not("weight_lbs", "is", null)
       .order("date", { ascending: false })
       .limit(limit);
 
     if (error) return new NextResponse(error.message, { status: 500 });
 
-    const results = (data || []).map((row, idx, arr) => {
+    // Reverse to get chronological order for trend calculation
+    const sorted = (data || []).reverse();
+    
+    const results = sorted.map((row, idx) => {
       const weight = row.weight_lbs || 0;
       let trend = "—";
-      if (idx < arr.length - 1) {
-        const prevWeight = arr[idx + 1].weight_lbs || 0;
+      if (idx > 0) {
+        const prevWeight = sorted[idx - 1].weight_lbs || 0;
         if (weight < prevWeight) trend = "↓ Down";
         else if (weight > prevWeight) trend = "↑ Up";
         else trend = "→ Stable";
@@ -124,7 +128,7 @@ export async function GET(req: Request) {
         weight,
         trend,
       };
-    });
+    }).reverse(); // Reverse back to descending for display
 
     return NextResponse.json({ category: "weight", data: results });
   }
