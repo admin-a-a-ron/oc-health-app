@@ -8,6 +8,7 @@ import { NutritionChart } from "@/app/dashboard/nutritionChart";
 import { HealthScoreChart } from "@/app/dashboard/healthScoreChart";
 import { clearToken, getToken } from "@/lib/clientAuth";
 import TopNav from "@/components/TopNav";
+import CategoryDetailsModal from "@/components/CategoryDetailsModal";
 
 type DailyMetricsRow = {
   date: string;
@@ -147,7 +148,19 @@ export default function WeightsPage() {
   const [activeTab, setActiveTab] = useState<SummaryTabKey>("yesterday");
   const [rangeStart, setRangeStart] = useState(defaultRangeDate);
   const [rangeEnd, setRangeEnd] = useState(defaultRangeDate);
+  const [modalCategory, setModalCategory] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const token = useMemo(() => getToken(), []);
+
+  const handleCategoryClick = (category: string) => {
+    setModalCategory(category);
+    setModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setModalCategory(null);
+  };
 
   useEffect(() => {
     async function run() {
@@ -245,12 +258,7 @@ export default function WeightsPage() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <TopNav />
-      <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto max-w-4xl px-6 py-4">
-          <h1 className="text-lg font-semibold">Weight</h1>
-          <p className="text-sm text-zinc-600">lbs + 7-day average</p>
-        </div>
-      </header>
+
 
       <main className="mx-auto max-w-4xl px-6 py-6">
         {err ? (
@@ -301,11 +309,12 @@ export default function WeightsPage() {
 
         <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-zinc-700">Health Score Analysis</h2>
+          <p className="mt-1 text-xs text-zinc-500">Click on any category to see detailed breakdown</p>
           <div className="mt-4">
             {loading ? (
               <p className="text-sm text-zinc-600">Loading…</p>
             ) : (
-              <HealthScoreChart metrics={metrics} />
+              <HealthScoreChart metrics={metrics} onCategoryClick={handleCategoryClick} />
             )}
           </div>
         </section>
@@ -368,6 +377,12 @@ export default function WeightsPage() {
         </section>
 
       </main>
+
+      <CategoryDetailsModal 
+        isOpen={modalOpen} 
+        category={modalCategory} 
+        onClose={handleCloseModal} 
+      />
     </div>
   );
 }

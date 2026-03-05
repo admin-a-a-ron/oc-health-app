@@ -91,7 +91,9 @@ export async function POST(req: Request) {
     }
     if (!minutes) continue;
 
-    const bucketSource = startTs?.toISOString() ?? (row.date ? `${row.date}T00:00:00Z` : undefined);
+    // Use local time string (start) for bucketing, not UTC (start_rfc)
+    // because sleep sessions should be bucketed by their LOCAL start date
+    const bucketSource = row.start ?? startTs?.toISOString() ?? (row.date ? `${row.date}T00:00:00Z` : undefined);
     const dateBucket = row.bucket_date || (bucketSource ? formatSleepBucket(bucketSource) : null);
     if (!dateBucket) continue;
 

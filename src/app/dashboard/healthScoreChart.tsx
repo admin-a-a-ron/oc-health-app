@@ -19,6 +19,7 @@ type DailyMetricsRow = {
 
 interface HealthScoreChartProps {
   metrics: DailyMetricsRow[];
+  onCategoryClick?: (category: string) => void;
 }
 
 const average = (values: number[]) => {
@@ -37,7 +38,7 @@ const toNumber = (value: unknown): number | null => {
 
 const clampScore = (value: number) => Math.max(0, Math.min(100, value));
 
-export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
+export function HealthScoreChart({ metrics, onCategoryClick }: HealthScoreChartProps) {
   const windowed = metrics.slice(-7);
   if (!windowed.length) {
     return (
@@ -185,22 +186,42 @@ export function HealthScoreChart({ metrics }: HealthScoreChartProps) {
 
           <div className="flex-1">
             <div className="grid grid-cols-2 gap-2">
-              {Object.entries(scores).map(([key, value]) => (
-                <div key={key} className="rounded-lg border border-zinc-200 p-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500 capitalize">
-                      {key.replace(/([A-Z])/g, ' $1').trim()}
-                    </span>
-                    <span className={`text-xs font-bold ${getScoreColor(value)}`}>{value}</span>
-                  </div>
-                  <div className="mt-1 h-1 w-full rounded-full bg-zinc-200">
-                    <div
-                      className={`h-full rounded-full ${value >= 80 ? 'bg-green-500' : value >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                      style={{ width: `${value}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+              {Object.entries(scores).map(([key, value]) => {
+                const categoryMap: Record<string, string> = {
+                  sleep: 'sleep',
+                  activity: 'workouts',
+                  nutrition: 'nutrition',
+                  heartHealth: 'heart',
+                  consistency: 'consistency',
+                  weightTrend: 'weight',
+                };
+                const category = categoryMap[key];
+                const isClickable = ['sleep', 'nutrition', 'workouts', 'weight', 'heart'].includes(category);
+
+                return (
+                  <button
+                    key={key}
+                    onClick={() => isClickable && onCategoryClick?.(category)}
+                    disabled={!isClickable}
+                    className={`rounded-lg border border-zinc-200 p-2 text-left transition ${
+                      isClickable ? 'cursor-pointer hover:border-zinc-300 hover:bg-zinc-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-500 capitalize">
+                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                      </span>
+                      <span className={`text-xs font-bold ${getScoreColor(value)}`}>{value}</span>
+                    </div>
+                    <div className="mt-1 h-1 w-full rounded-full bg-zinc-200">
+                      <div
+                        className={`h-full rounded-full ${value >= 80 ? 'bg-green-500' : value >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        style={{ width: `${value}%` }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
