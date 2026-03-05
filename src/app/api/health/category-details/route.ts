@@ -79,22 +79,23 @@ export async function GET(req: Request) {
   }
 
   if (category === "workouts") {
-    // Fetch workouts from sessions table
+    // Fetch workouts from daily_metrics
     const { data, error } = await sb
-      .from("sessions")
-      .select("created_at, name, minutes_spent, steps")
-      .eq("status", "ended")
-      .order("created_at", { ascending: false })
+      .from("daily_metrics")
+      .select("date, exercise_minutes, steps")
+      .order("date", { ascending: false })
       .limit(limit);
 
     if (error) return new NextResponse(error.message, { status: 500 });
 
-    const results = (data || []).map((row) => ({
-      date: row.created_at ? row.created_at.split("T")[0] : "—",
-      exercise: row.name || "Unknown",
-      duration: row.minutes_spent || 0,
-      steps: row.steps || 0,
-    }));
+    const results = (data || [])
+      .filter((row) => row.exercise_minutes != null && row.exercise_minutes > 0)
+      .map((row) => ({
+        date: row.date,
+        exercise: "Logged Exercise",
+        duration: row.exercise_minutes || 0,
+        steps: row.steps || 0,
+      }));
 
     return NextResponse.json({ category: "workouts", data: results });
   }
