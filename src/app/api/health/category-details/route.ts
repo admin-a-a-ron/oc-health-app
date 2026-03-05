@@ -107,12 +107,15 @@ export async function GET(req: Request) {
       .select("date, weight_lbs")
       .not("weight_lbs", "is", null)
       .order("date", { ascending: false })
-      .limit(limit);
+      .limit(limit * 2); // Over-fetch to account for 0 filtering
 
     if (error) return new NextResponse(error.message, { status: 500 });
 
+    // Filter out 0 values (missed logs)
+    const validWeights = (data || []).filter((row) => row.weight_lbs && row.weight_lbs > 0);
+    
     // Reverse to get chronological order for trend calculation
-    const sorted = (data || []).reverse();
+    const sorted = validWeights.slice(0, limit).reverse();
     
     const results = sorted.map((row, idx) => {
       const weight = row.weight_lbs || 0;
