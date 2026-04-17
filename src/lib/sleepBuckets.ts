@@ -17,14 +17,14 @@ const timeFormatter = new Intl.DateTimeFormat("en-CA", {
 /**
  * Parse local time string and return YYYY-MM-DD date bucket using 12pm-to-12pm sleep night logic.
  * 
- * Sleep nights span from 12pm one day through 11:59 PM of that day.
+ * Sleep nights span from 12pm one day through 11:59 AM of the NEXT day.
  * This means:
- * - Sleep starting before noon on day X belongs to day X-1's night
- * - Sleep starting at noon or later on day X belongs to day X's night
+ * - Sleep starting at noon or later on day X belongs to the day X+1 bucket (the "waking" day)
+ * - Sleep starting before noon on day X stays on day X (the "waking" day)
  * 
  * Example:
- * - Sleep starting 3/5 at 8am → buckets to 3/4 (morning sleep = previous night)
- * - Sleep starting 3/5 at 11pm → buckets to 3/5 (night sleep = that day's night)
+ * - Sleep starting 3/5 at 8am → buckets to 3/5 (woke up on 3/5)
+ * - Sleep starting 3/5 at 11pm → buckets to 3/6 (will wake up on 3/6)
  */
 export const formatSleepBucket = (input: string | null | undefined) => {
   if (!input) return null;
@@ -69,18 +69,18 @@ export const formatSleepBucket = (input: string | null | undefined) => {
 
   if (!dateStr) return null;
 
-  // Apply 12pm-to-12pm bucketing: if hour is before noon (0-11), shift to previous day
+  // Apply 12pm-to-12pm bucketing: if hour is 12:00 PM or later (12-23), shift to NEXT day
   const hour = parseInt(hourStr || "0", 10);
-  if (hour < 12) {
-    // Sleep in morning (before noon) belongs to previous night
-    // Parse YYYY-MM-DD and subtract 1 day (using local date math)
+  if (hour >= 12) {
+    // Sleep starting in afternoon/evening belongs to NEXT day's waking bucket
+    // Parse YYYY-MM-DD and add 1 day (using local date math)
     const [year, month, day] = dateStr.split("-").map(Number);
     const date = new Date(year, month - 1, day);
-    date.setDate(date.getDate() - 1);
-    const prevYear = date.getFullYear();
-    const prevMonth = String(date.getMonth() + 1).padStart(2, "0");
-    const prevDay = String(date.getDate()).padStart(2, "0");
-    return `${prevYear}-${prevMonth}-${prevDay}`;
+    date.setDate(date.getDate() + 1);
+    const nextYear = date.getFullYear();
+    const nextMonth = String(date.getMonth() + 1).padStart(2, "0");
+    const nextDay = String(date.getDate()).padStart(2, "0");
+    return `${nextYear}-${nextMonth}-${nextDay}`;
   }
 
   return dateStr;
