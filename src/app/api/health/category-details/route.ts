@@ -78,26 +78,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ category: "nutrition", data: results });
   }
 
-  if (category === "workouts") {
-    // Fetch workouts from daily_metrics
+  if (category === "activity") {
+    // Fetch movement markers from daily_metrics
     const { data, error } = await sb
       .from("daily_metrics")
-      .select("date, exercise_minutes, steps")
+      .select("date, steps, active_calories_out")
       .order("date", { ascending: false })
       .limit(limit);
 
     if (error) return new NextResponse(error.message, { status: 500 });
 
-    const results = (data || [])
-      .filter((row) => row.exercise_minutes != null && row.exercise_minutes > 0)
-      .map((row) => ({
-        date: row.date,
-        exercise: "Logged Exercise",
-        duration: row.exercise_minutes || 0,
-        steps: row.steps || 0,
-      }));
+    const results = (data || []).map((row) => ({
+      date: row.date,
+      steps: row.steps || 0,
+      active_burn: row.active_calories_out || 0,
+    }));
 
-    return NextResponse.json({ category: "workouts", data: results });
+    return NextResponse.json({ category: "activity", data: results });
   }
 
   if (category === "weight") {

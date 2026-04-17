@@ -12,7 +12,6 @@ type DailyMetricsRow = {
   carbs_g: number | null;
   fat_g: number | null;
   active_calories_out: number | null;
-  exercise_minutes: number | null;
   resting_hr: number | null;
   updated_at: string | null;
 };
@@ -56,8 +55,11 @@ export function HealthScoreChart({ metrics, onCategoryClick }: HealthScoreChartP
   const sleepScore = Math.max(0, Math.min(100, (sleepHours / 8) * 100));
 
   const avgSteps = average(windowed.map((m) => m.steps ?? 0)) ?? 0;
-  const avgExercise = average(windowed.map((m) => m.exercise_minutes ?? 0)) ?? 0;
-  const activityScore = Math.round(Math.min(100, (avgSteps / 8000) * 100) * 0.6 + Math.min(100, (avgExercise / 30) * 100) * 0.4);
+  const avgActiveBurn = average(windowed.map((m) => m.active_calories_out ?? 0)) ?? 0;
+  const activityScore = Math.round(
+    Math.min(100, (avgSteps / 8000) * 100) * 0.6 + 
+    Math.min(100, (avgActiveBurn / 500) * 100) * 0.4
+  );
 
   // Nutrition: exclude null/0 values (treat as missed logs, not actual 0)
   const proteinVals = windowed
@@ -91,7 +93,7 @@ export function HealthScoreChart({ metrics, onCategoryClick }: HealthScoreChartP
   }
 
   const daysWithData = windowed.filter((m) =>
-    [m.steps, m.sleep_minutes, m.exercise_minutes, m.calories_in, m.resting_hr].some((v) => v != null)
+    [m.steps, m.sleep_minutes, m.calories_in, m.resting_hr].some((v) => v != null)
   ).length;
   const consistency = Math.round((daysWithData / windowed.length) * 100);
 
@@ -140,8 +142,8 @@ export function HealthScoreChart({ metrics, onCategoryClick }: HealthScoreChartP
 
   const overallScore = Math.round(
     scores.sleep * 0.2 +
-      scores.activity * 0.2 +
-      scores.nutrition * 0.2 +
+      scores.activity * 0.15 +
+      scores.nutrition * 0.25 +
       scores.heartHealth * 0.15 +
       scores.consistency * 0.15 +
       scores.weightTrend * 0.1
@@ -204,14 +206,14 @@ export function HealthScoreChart({ metrics, onCategoryClick }: HealthScoreChartP
               {Object.entries(scores).map(([key, value]) => {
                 const categoryMap: Record<string, string> = {
                   sleep: 'sleep',
-                  activity: 'workouts',
+                  activity: 'activity',
                   nutrition: 'nutrition',
                   heartHealth: 'heart',
                   consistency: 'consistency',
                   weightTrend: 'weight',
                 };
                 const category = categoryMap[key];
-                const isClickable = ['sleep', 'nutrition', 'workouts', 'weight', 'heart'].includes(category);
+                const isClickable = ['sleep', 'nutrition', 'weight', 'heart', 'activity'].includes(category);
 
                 return (
                   <button

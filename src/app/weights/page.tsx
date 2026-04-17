@@ -20,7 +20,6 @@ type DailyMetricsRow = {
   carbs_g: number | null;
   fat_g: number | null;
   active_calories_out: number | null;
-  exercise_minutes: number | null;
   resting_hr: number | null;
   updated_at: string | null;
 };
@@ -57,7 +56,6 @@ const AVERAGE_FIELDS: (keyof DailyMetricsRow)[] = [
   "carbs_g",
   "fat_g",
   "active_calories_out",
-  "exercise_minutes",
 ];
 
 const computeAverageRow = (rows: DailyMetricsRow[]): Partial<DailyMetricsRow> | null => {
@@ -259,8 +257,7 @@ export default function WeightsPage() {
     { label: "Protein (g)", value: formatNumberValue(getNumericValue("protein_g")) },
     { label: "Carbs (g)", value: formatNumberValue(getNumericValue("carbs_g")) },
     { label: "Fat (g)", value: formatNumberValue(getNumericValue("fat_g")) },
-    { label: "Calories burned", value: formatNumberValue(getNumericValue("active_calories_out")) },
-    { label: "Exercise (min)", value: formatNumberValue(getNumericValue("exercise_minutes")) },
+    { label: "Active Burn", value: formatNumberValue(getNumericValue("active_calories_out")) },
   ];
 
   const sleepRangeLabel = rangeStart === rangeEnd ? rangeStart : `${rangeStart} – ${rangeEnd}`;
@@ -360,7 +357,7 @@ export default function WeightsPage() {
 
         <section className="mt-6 rounded-xl border border-zinc-200 bg-white p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-700">Sleep & Activity Timeline</h2>
+            <h2 className="text-sm font-semibold text-zinc-700">Sleep Timeline</h2>
             <p className="text-xs text-zinc-500">Range: {sleepRangeLabel}</p>
           </div>
           <div className="mt-4">

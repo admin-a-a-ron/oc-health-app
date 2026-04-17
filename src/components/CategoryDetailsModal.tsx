@@ -26,11 +26,10 @@ interface NutritionRow {
   fat: number;
 }
 
-interface WorkoutRow {
+interface ActivityRow {
   date: string;
-  exercise: string;
-  duration: number;
   steps: number;
+  active_burn: number;
 }
 
 interface WeightRow {
@@ -44,7 +43,7 @@ interface HeartRow {
   resting_hr: number;
 }
 
-type DataRow = SleepRow | NutritionRow | WorkoutRow | WeightRow | HeartRow | Record<string, any>;
+type DataRow = SleepRow | NutritionRow | ActivityRow | WeightRow | HeartRow | Record<string, any>;
 
 export default function CategoryDetailsModal({
   isOpen,
@@ -128,12 +127,11 @@ export default function CategoryDetailsModal({
                         <th>Fat (g)</th>
                       </>
                     )}
-                    {category === "workouts" && (
+                    {category === "activity" && (
                       <>
                         <th>Date</th>
-                        <th>Exercise</th>
-                        <th>Duration (min)</th>
                         <th>Steps</th>
+                        <th>Active Burn (kcal)</th>
                       </>
                     )}
                     {category === "weight" && (
@@ -173,12 +171,11 @@ export default function CategoryDetailsModal({
                           <td>{((row as NutritionRow).fat || 0).toFixed(1)}</td>
                         </>
                       )}
-                      {category === "workouts" && (
+                      {category === "activity" && (
                         <>
-                          <td>{(row as WorkoutRow).date}</td>
-                          <td>{(row as WorkoutRow).exercise}</td>
-                          <td>{(row as WorkoutRow).duration}</td>
-                          <td>{(row as WorkoutRow).steps.toLocaleString()}</td>
+                          <td>{(row as ActivityRow).date}</td>
+                          <td>{((row as ActivityRow).steps || 0).toLocaleString()}</td>
+                          <td>{Math.round((row as ActivityRow).active_burn || 0)}</td>
                         </>
                       )}
                       {category === "weight" && (
